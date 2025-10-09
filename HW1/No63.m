@@ -65,4 +65,3 @@ function draw_axes(O, R, s, tag)
         text(P(1), P(2), P(3), sprintf('%s_%c', tag, 'x'+i-1), 'FontSize', 8);
     end
 end
-修复问题
