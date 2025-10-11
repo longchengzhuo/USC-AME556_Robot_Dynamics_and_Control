@@ -11,12 +11,7 @@ function HW2_demo()
         [t,x]=ode45(@sys_dynamics,tspan,x0(:,i));
         
         anim(t,x,1/24, i); % animate the system and save the simulation video
-        
-        % recreate control inputs
-         % for i=1:length(t)
-         %     u(:,i)=controller(t(i),x(i,:)');
-         % end
-         
+
          % plot the simulation data
         figure; plot(x(:,1), x(:,2), '-o', 'LineWidth', 1.5, 'MarkerSize', 3); 
         xlabel('x-position (m)');   
