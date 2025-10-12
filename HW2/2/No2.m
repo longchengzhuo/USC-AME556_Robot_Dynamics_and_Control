@@ -62,13 +62,26 @@ ode_system = @(t, y) [ y(3); y(4); D_func(t, M_val, m_val, l_val, y(2), y(4), y(
 [t_sol, y_sol] = ode45(ode_system, t_span, y0);
 
 %% 7. Plot Results
+% Load data from C++ simulation
+pos_data = readmatrix('position.csv');
+angle_data = readmatrix('angle.csv');
+
 figure;
 subplot(2, 1, 1);
 plot(t_sol, y_sol(:, 1), 'b-', 'LineWidth', 1.5);
+hold on;
+plot(pos_data(:, 1), pos_data(:, 2), 'r--', 'LineWidth', 1.5);
+hold off;
 title('Cart Position vs. Time'); xlabel('Time (s)'); ylabel('Position x (m)'); grid on;
+legend('MATLAB Sim', 'C++ Sim');
+
 subplot(2, 1, 2);
-plot(t_sol, y_sol(:, 2) * 180/pi, 'r-', 'LineWidth', 1.5);
+plot(t_sol, y_sol(:, 2) * 180/pi, 'b-', 'LineWidth', 1.5);
+hold on;
+plot(angle_data(:, 1), angle_data(:, 2), 'r--', 'LineWidth', 1.5);
+hold off;
 title('Pole Angle vs. Time'); xlabel('Time (s)'); ylabel('Angle \theta (degrees)'); grid on;
+legend('MATLAB Sim', 'C++ Sim');
 
 %% 8. Generate Animation
 ts = 1/60;
