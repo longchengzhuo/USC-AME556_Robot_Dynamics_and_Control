@@ -22,7 +22,10 @@ ddq = [ddx; ddtheta];
 %% 3. Derive Equations of Motion (EOM) via Lagrange's Equations
 J1 = simplify(jacobian(L, q))';
 J2 = simplify(jacobian(L, dq))';
+disp('j2:'); pretty(J2);
+
 dJ2_dt = simplify(diff(J2, t));
+disp('j2dt:'); pretty(dJ2_dt);
 
 % EOM = d/dt(dL/dq_dot) - dL/dq = 0
 EOM = dJ2_dt - J1;
@@ -31,26 +34,19 @@ EOM = simplify(EOM);
 % EOM is in the form: D(q)*ddq + N(q, dq) = 0
 D = simplify(jacobian(EOM, ddq));
 N = simplify(subs(EOM, ddq, [0; 0]));
-
+DDq = simplify(D\(-N));
 %% 4. Display Symbolic Results
 disp('Lagrangian L:'); pretty(L);
 disp('Mass Matrix D:'); pretty(D);
 disp('Coriolis, Centrifugal, and Gravity terms N:'); pretty(N);
+disp('DDQ:'); pretty(DDq);
 
 %% 5. Setup for Numerical Simulation
-M_val = 1;      % kg
+M_val = 1.0;      % kg
 m_val = 0.2;    % kg
 l_val = 0.3;    % m
 g_val = 9.8;    % m/s^2
 
-syms th thd xh xhd real
-old_syms = [theta(t), diff(theta(t), t), x(t), diff(x(t), t)];
-new_syms = [th, thd, xh, xhd];
-D_sub = subs(D, old_syms, new_syms);
-N_sub = subs(N, old_syms, new_syms);
-
-D_func = matlabFunction(D_sub, 'Vars', {t, M, m, l, th, thd, xh, xhd});
-N_func = matlabFunction(N_sub, 'Vars', {t, M, m, l, g, th, thd, xh, xhd});
 
 %% 6. Run ODE Simulation
 t_span = [0 2];
@@ -58,7 +54,11 @@ t_span = [0 2];
 y0 = [0; pi/6; 0; 0];
 
 % From EOM, ddq = -inv(D)*N
-ode_system = @(t, y) [ y(3); y(4); D_func(t, M_val, m_val, l_val, y(2), y(4), y(1), y(3)) \ -N_func(t, M_val, m_val, l_val, g_val, y(2), y(4), y(1), y(3)) ];
+ode_system = @(t, y) [ y(3);
+                       y(4);
+                       -(sin(y(2))*m_val*( l_val*y(4)^2 - g_val*cos(y(2))))/((-m_val)*cos(y(2))^2+M_val+m_val);
+                       sin(y(2))*(M_val*g_val + g_val*m_val - y(4)^2*cos(y(2))*l_val*m_val )/(l_val*((-m_val)*cos(y(2))^2+M_val+m_val))];
+
 [t_sol, y_sol] = ode45(ode_system, t_span, y0);
 
 %% 7. Plot Results
@@ -85,11 +85,11 @@ legend('MATLAB Sim', 'C++ Sim');
 
 %% 8. Generate Animation
 ts = 1/60;
-file_index = 1;
-anim_cart_pole(t_sol, y_sol, ts, file_index, l_val);
+[script_dir, ~, ~] = fileparts(mfilename('fullpath'));
+anim_cart_pole(t_sol, y_sol, ts, l_val, script_dir);
 disp('Simulation and animation complete.');
 
-function anim_cart_pole(t, x, ts, file_index, l)
+function anim_cart_pole(t, x, ts, l, save_dir)
     Fs = 1/ts;
     [te, xe] = even_sample(t, x, Fs);
     
@@ -101,8 +101,9 @@ function anim_cart_pole(t, x, ts, file_index, l)
     fig1 = figure(1001); clf(fig1);
     axes1 = axes('Parent', fig1, 'XLim', [x_min, x_max], 'YLim', [y_min, y_max]);
     axis(axes1, 'equal'); grid(axes1, 'on'); hold(axes1, 'on');
+    axis(axes1, 'manual');
     
-    video_filename = sprintf('cartpole_animation_%d', file_index);
+    video_filename = fullfile(save_dir, 'cartpole_matlab');
     v = VideoWriter(video_filename, 'MPEG-4');
     v.FrameRate = Fs;
     open(v);
