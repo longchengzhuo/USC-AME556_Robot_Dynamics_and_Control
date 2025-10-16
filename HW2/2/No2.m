@@ -14,7 +14,6 @@ ddtheta = diff(dtheta, t);
 % L = T - V (Kinetic - Potential)
 L = 0.5*(M+m)*dx^2 - m*l*dx*dtheta*cos(theta(t)) + 0.5*m*l^2*dtheta^2 - m*g*l*cos(theta(t));
 L = simplify(L);
-
 q = [x(t); theta(t)];
 dq = [dx; dtheta];
 ddq = [ddx; ddtheta];
@@ -22,10 +21,7 @@ ddq = [ddx; ddtheta];
 %% 3. Derive Equations of Motion (EOM) via Lagrange's Equations
 J1 = simplify(jacobian(L, q))';
 J2 = simplify(jacobian(L, dq))';
-disp('j2:'); pretty(J2);
-
 dJ2_dt = simplify(diff(J2, t));
-disp('j2dt:'); pretty(dJ2_dt);
 
 % EOM = d/dt(dL/dq_dot) - dL/dq = 0
 EOM = dJ2_dt - J1;
@@ -33,13 +29,9 @@ EOM = simplify(EOM);
 
 % EOM is in the form: D(q)*ddq + N(q, dq) = 0
 D = simplify(jacobian(EOM, ddq));
+
 N = simplify(subs(EOM, ddq, [0; 0]));
 DDq = simplify(D\(-N));
-%% 4. Display Symbolic Results
-disp('Lagrangian L:'); pretty(L);
-disp('Mass Matrix D:'); pretty(D);
-disp('Coriolis, Centrifugal, and Gravity terms N:'); pretty(N);
-disp('DDQ:'); pretty(DDq);
 
 %% 5. Setup for Numerical Simulation
 M_val = 1.0;      % kg
@@ -52,14 +44,27 @@ g_val = 9.8;    % m/s^2
 t_span = [0 2];
 % State vector: y = [x; theta; x_dot; theta_dot]
 y0 = [0; pi/6; 0; 0];
+syms xh xhd th thd real
+old_syms = [diff(theta(t),t), theta(t), diff(x(t), t), x(t)];
+new_syms = [thd, th, xhd, xh];       
+D_sub = subs(D, old_syms, new_syms);
+N_sub = subs(N, old_syms, new_syms);
 
-% From EOM, ddq = -inv(D)*N
-ode_system = @(t, y) [ y(3);
-                       y(4);
-                       -(sin(y(2))*m_val*( l_val*y(4)^2 - g_val*cos(y(2))))/((-m_val)*cos(y(2))^2+M_val+m_val);
-                       sin(y(2))*(M_val*g_val + g_val*m_val - y(4)^2*cos(y(2))*l_val*m_val )/(l_val*((-m_val)*cos(y(2))^2+M_val+m_val))];
 
-[t_sol, y_sol] = ode45(ode_system, t_span, y0);
+D_sub = formula(D_sub);
+N_sub = formula(N_sub);
+
+D_sub = matlabFunction(D_sub, 'Vars', {M, m, l, th, thd, xh, xhd});
+N_sub = matlabFunction(N_sub, 'Vars', {M, m, l, g, th, thd, xh, xhd});
+
+
+
+ode = @(t,y) [ y(3); y(4); ...
+               D_sub(M_val,m_val,l_val, y(2),y(4), y(1),y(3)) \ ...
+              -N_sub(M_val,m_val,l_val,g_val, y(2),y(4), y(1),y(3)) ];
+
+
+[t_sol, y_sol] = ode45(ode, t_span, y0);
 
 %% 7. Plot Results
 % Load data from C++ simulation

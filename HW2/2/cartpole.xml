@@ -1,62 +1,26 @@
-<!-- 顶层：定义一个名为 cartpole 的 MuJoCo 模型；长度单位 m，时间 s，质量 kg（MuJoCo 约定俗成） -->
 <mujoco model="cartpole">
-  <!-- compiler：解析器/单位设置；angle="radian" 表示 XML 中所有角度量都用弧度 -->
   <compiler angle="radian"/>
-  <!-- option：全局仿真参数
-       timestep=0.001 表示 1ms 一个积分步
-       gravity="0 0 -9.81" 标准重力沿 -Z
-       integrator="RK4" 使用四阶 Runge-Kutta 数值积分，较稳定、精度更高 -->
   <option timestep="0.001" gravity="0 0 -9.81" integrator="RK4"/>
 
-  <!-- default：为未显式覆盖的 joint/geom 等提供默认属性 -->
   <default>
-    <!-- 所有关节默认无阻尼与无库仑/粘滞摩擦损失（便于干净地做控制/分析） -->
     <joint damping="0" frictionloss="0"/>
-    <!-- 所有几何体的默认可视颜色（RGBA） -->
+
     <geom rgba="0.7 0.7 0.7 1"/>
   </default>
 
-  <!-- worldbody：世界坐标系中的刚体层次树根 -->
   <worldbody>
-    <!-- 地面：无限大平面，位于 z=0；size 仅用于渲染/接触近似，rgba 为淡灰色 -->
     <geom type="plane" size="5 5 0.1" rgba="0.93 0.93 0.93 1"/>
-
-    <!-- 小车主体：质量约 1kg，在 X 轴方向滑动 -->
-    <!-- pos="0 0 0.03"：将小车刚体质心放在 z=0.03
-         因为车体盒子半高是 0.03（见下方 size），所以底面恰好在 z=0，与地面初始接触，不会“下落后弹起” -->
     <body name="cart" pos="0 0 0.03">
-      <!-- 直线滑动关节：沿 X 轴（1 0 0）平移；默认无行程限制，可通过 range 设置（此处留空） -->
       <joint name="slide" type="slide" axis="1 0 0"/>
-      <!-- 车体几何：长宽高的“半尺寸”分别是 0.10, 0.06, 0.03（MuJoCo 的 box size 为半长）
-           mass=1 指定刚体质量为 1kg（若不设 mass 而给出 density，则由体积*密度推导质量） -->
       <geom type="box" size="0.10 0.06 0.03" mass="1"/>
-
-      <!-- 杆的父 body：安装在小车顶面（相对小车 z=+0.03）
-           euler="0 2.6179939 0"：以（X,Y,Z）欧拉顺序在 Y 轴旋转 2.6179939 rad ≈ 150° (= π - 30°)
-           含义：把“本地 -Z 指向下的杆”整体初始转到“世界系上方且向左 30°”的位置 -->
       <body name="pole" pos="0 0 0" euler="0 2.6179939 0">
-        <!-- 转动关节：绕本地 Y 轴转动（0 1 0）
-             轴向定义在“杆 body 的本地坐标系”中；因为我们对杆的初始姿态也只绕 Y 轴旋转，
-             所以该轴在世界系中仍对齐全局 Y（绕 Y 旋转不会改变 Y 本身） -->
         <joint name="hinge" type="hinge" axis="0 1 0"/>
 
-        <!-- 杆的细长部分（近似无质量）：
-             type="capsule" 由 fromto 指定两端点：从 (0,0,0) 到 (0,0,-0.3)，即“本地向下 0.3m”
-             size="0.01" 为半径 1cm
-             density="1e-6" 极小密度，使其质量几乎为 0，把质量集中到末端小球
-             contype="2" conaffinity="2"：碰撞过滤位设置为 bit2
-               - 默认地面/小车是 contype=1, conaffinity=1
-               - 接触条件为 (A.contype & B.conaffinity) 或 (B.contype & A.conaffinity) 非零
-               - 由于这里使用 bit2 而地面/小车是 bit1，位与为 0 ⇒ 杆与地面/小车不发生接触 -->
         <geom type="capsule" fromto="0 0 0  0 0 -0.3"
               size="0.0001" density="1e-6"
               contype="2" conaffinity="2"/>
 
-        <!-- 杆端部的“重锤”小球（集中质量） -->
-        <!-- 子 body：在杆本地坐标 (0,0,-0.3) 处（与 capsule 末端对齐） -->
         <body name="bob" pos="0 0 -0.3">
-          <!-- 球形几何：半径 0.02m，质量 0.2kg；颜色加蓝以区分
-               同样设置 contype/conaffinity=2，避免与地面/小车碰撞 -->
           <geom type="sphere" size="0.0002" mass="0.2"
                 rgba="0.2 0.2 0.8 1"
                 contype="2" conaffinity="2"/>
@@ -65,8 +29,6 @@
     </body>
   </worldbody>
 
-  <!-- 执行器定义：给滑动关节施加力（对 prismatic 关节是力，对转动关节是力矩）
-       gear="1.0"：控制量 u 乘以 1.0 直接等于作用在关节上的广义力（单位 N） -->
   <actuator>
     <motor name="u" joint="slide" gear="1.0"/>
   </actuator>

@@ -21,8 +21,7 @@ euler0_rad = [pi/6; pi/8; pi/4];
 omega0_b = [0; -0.1; 0.1];
 
 
-R0 = eul2rotm(euler0_rad', 'ZYX');
-
+R0 = eul2rotm([euler0_rad(3), euler0_rad(2), euler0_rad(1)], 'ZYX');
 
 x0 = [p0; R0(:); v0; omega0_b];
 
@@ -63,8 +62,9 @@ xlabel('Time (s)'); sgtitle('Body Orientation (Euler Angles) vs. Time');
 
 % --- Animation Generation ---
 fprintf('Generating animation video... This may take a moment.\n');
-anim(t, x_out, d, r);
-fprintf('Video HW2_3.mp4 has been saved to your current directory.\n');
+[script_dir, ~, ~] = fileparts(mfilename('fullpath'));
+anim(t, x_out, d, r, script_dir);
+fprintf('Video HW2_3.mp4 has been saved to the script directory.\n');
 
 
 %%
@@ -94,7 +94,7 @@ function x_dot = uav_dynamics(~, x, m, g, I)
 end
 
 %%
-function anim(t, x_state, d, r)
+function anim(t, x_state, d, r, save_dir)
     Fs = 30; % Frame rate for the video
     [te, xe] = even_sample(t, x_state, Fs);
 
@@ -107,7 +107,7 @@ function anim(t, x_state, d, r)
     margin = 2 * (d + r); 
     axis_limits = [x_min-margin, x_max+margin, y_min-margin, y_max+margin, z_min-margin, z_max+margin];
     
-    video_filename = 'HW2_3';
+    video_filename = fullfile(save_dir, 'HW2_3');
     v = VideoWriter(video_filename, 'MPEG-4');
     v.FrameRate = Fs;
     open(v);
