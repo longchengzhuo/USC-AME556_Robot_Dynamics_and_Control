@@ -1,0 +1,74 @@
+<mujoco model="biped">
+  <compiler angle="radian"/>
+
+  <option timestep="0.002" gravity="0 0 -9.81"/>
+
+  <asset>
+    <texture type="2d" name="groundplane" builtin="checker" mark="edge" rgb1="0.2 0.3 0.4" rgb2="0.1 0.2 0.3" markrgb="0.8 0.8 0.8" width="300" height="300"/>
+    <material name="groundplane" texture="groundplane" texuniform="true" texrepeat="5 5" reflectance="0.2"/>
+  </asset>
+
+  <worldbody>
+    <light pos="0 0 1.5" dir="0 0 -1" directional="true"/>
+    <geom name="floor"
+          size="0 0 0.1"
+          type="plane"
+          material="groundplane"
+          friction="0.5 0 0"
+          condim="6"
+         />
+
+    <body name="trunk">
+      <joint name="slide_x" type="slide" axis="1 0 0" />
+      <joint name="slide_z" type="slide" axis="0 0 1" />
+      <joint name="rotate_y" type="hinge" axis="0 1 0" />
+      <geom name="trunk_geom" type="box" size="0.075 0.015 0.125" rgba="0.8 0.2 0.2 1" density="7111"/>
+
+      <!-- Left Leg -->
+      <body name="left_thigh" pos="0 0 -0.125">
+        <inertial pos="0 0 -0.11" mass="0.25" diaginertia="0.0010083 0.0010083 1e-6"/>
+        <joint name="left_hip" type="hinge" axis="0 1 0"/>
+        <geom name="left_thigh_geom" fromto="0 0 0 0 0 -0.22" type="capsule" size="0.03" rgba="0.2 0.2 0.8 1"/>
+        <body name="left_shin" pos="0 0 -0.22">
+          <inertial pos="0 0 -0.11" mass="0.25" diaginertia="0.0010083 0.0010083 1e-6"/>
+          <joint name="left_knee" type="hinge" axis="0 1 0"/>
+          <geom name="left_shin_geom" fromto="0 0 0 0 0 -0.22" type="capsule" size="0.03" rgba="0.2 0.2 0.8 1"/>
+        </body>
+      </body>
+
+      <!-- Right Leg -->
+      <body name="right_thigh" pos="0 0 -0.125">
+        <inertial pos="0 0 -0.11" mass="0.25" diaginertia="0.0010083 0.0010083 1e-6"/>
+        <joint name="right_hip" type="hinge" axis="0 1 0"/>
+        <geom name="right_thigh_geom" fromto="0 0 0 0 0 -0.22" type="capsule" size="0.03" rgba="0.2 0.2 0.8 1"/>
+        <body name="right_shin" pos="0 0 -0.22">
+          <inertial pos="0 0 -0.11" mass="0.25" diaginertia="0.0010083 0.0010083 1e-6"/>
+          <joint name="right_knee" type="hinge" axis="0 1 0"/>
+          <geom name="right_shin_geom" fromto="0 0 0 0 0 -0.22" type="capsule" size="0.03" rgba="0.2 0.2 0.8 1"/>
+        </body>
+      </body>
+
+    </body>
+  </worldbody>
+
+  <contact>
+    <exclude body1="left_thigh" body2="right_thigh"/>
+    <exclude body1="left_thigh" body2="right_shin"/>
+    <exclude body1="left_shin" body2="right_thigh"/>
+    <exclude body1="left_shin" body2="right_shin"/>
+  </contact>
+
+  <actuator>
+    <motor name="left_hip" joint="left_hip"    />
+    <motor name="left_knee" joint="left_knee"  />
+    <motor name="right_hip" joint="right_hip"  />
+    <motor name="right_knee" joint="right_knee"/>
+  </actuator>
+
+  <keyframe>
+    <key name="initial"
+         qpos="0 0.65 0 -1.0472 1.5708 0 1.5708"
+         qvel="0 0 0 0 0 0 0" />
+  </keyframe>
+
+</mujoco>
