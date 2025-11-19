@@ -6,6 +6,7 @@
 #include <thread>
 #include <chrono>
 #include <iomanip>
+#include <cstdio> // [新增] 用于 popen
 
 // Graphics and Physics
 #include <GLFW/glfw3.h>
@@ -37,17 +38,14 @@ double lastx = 0;
 double lasty = 0;
 
 // --- Callback Functions ---
-
-// Keyboard: Space to reset to Keyframe
+// (保持原样，此处省略以节省篇幅，请保留原代码中的 keyboard, mouse_button, mouse_move, scroll)
 void keyboard(GLFWwindow* window, int key, int scancode, int act, int mods) {
     if (act == GLFW_PRESS && key == GLFW_KEY_SPACE) {
-        // 重置到 XML 定义的 keyframe (30度倾斜)
         mj_resetDataKeyframe(m, d, 0);
         mj_forward(m, d);
     }
 }
 
-// Mouse Button
 void mouse_button(GLFWwindow* window, int button, int act, int mods) {
     button_left = (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS);
     button_middle = (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_MIDDLE) == GLFW_PRESS);
@@ -55,7 +53,6 @@ void mouse_button(GLFWwindow* window, int button, int act, int mods) {
     glfwGetCursorPos(window, &lastx, &lasty);
 }
 
-// Mouse Move
 void mouse_move(GLFWwindow* window, double xpos, double ypos) {
     if (!button_left && !button_middle && !button_right) return;
 
@@ -81,13 +78,12 @@ void mouse_move(GLFWwindow* window, double xpos, double ypos) {
     mjv_moveCamera(m, action, dx / height, dy / height, &scn, &cam);
 }
 
-// Scroll
 void scroll(GLFWwindow* window, double xoffset, double yoffset) {
     mjv_moveCamera(m, mjMOUSE_ZOOM, 0, -0.05 * yoffset, &scn, &cam);
 }
 
 // --- LQR Solver ---
-
+// (保持原样，此处省略，请保留原代码中的 solveCARE 和 computeLQR)
 Eigen::MatrixXd solveCARE(const Eigen::MatrixXd& A, const Eigen::MatrixXd& B,
                           const Eigen::MatrixXd& Q, const Eigen::MatrixXd& R) {
     Eigen::MatrixXd P = Q;
@@ -139,9 +135,10 @@ void run_simulation(const SimConfig& config) {
     R(0,0) = config.R_scalar;
     Eigen::MatrixXd K = computeLQR(config.Q, R);
 
-    // 2. Setup Window (Cleaned up)
-    // 直接创建窗口，无需多余检查
-    GLFWwindow* window = glfwCreateWindow(1200, 900, ("LQR Control: " + config.name).c_str(), NULL, NULL);
+    // 2. Setup Window
+    int width = 1200; // [修改] 提取为变量以便录制使用
+    int height = 900;
+    GLFWwindow* window = glfwCreateWindow(width, height, ("LQR Control: " + config.name).c_str(), NULL, NULL);
     if (!window) {
         mju_error("Could not create GLFW window");
     }
@@ -179,10 +176,32 @@ void run_simulation(const SimConfig& config) {
     std::ofstream file("../LQR_result_" + config.file_suffix + ".csv");
     file << "t,x,theta,u\n";
 
+    // --- [新增] 视频录制设置 ---
+    std::string video_filename = "../video_" + config.file_suffix + ".mp4";
+    // ffmpeg 命令: 接收 raw rgb 数据 -> 翻转(vflip) -> 编码为 mp4
+    // 注意: OpenGL 原点在左下角，视频通常在左上角，所以需要 vflip
+    std::string cmd = "ffmpeg -y -f rawvideo -vcodec rawvideo -pix_fmt rgb24 -s " +
+                      std::to_string(width) + "x" + std::to_string(height) +
+                      " -r 60 -i - -c:v libx264 -pix_fmt yuv420p -vf vflip -loglevel error " + video_filename;
+
+    // 打开管道 (Windows 使用 _popen, Linux/Mac 使用 popen)
+    #ifdef _WIN32
+        FILE* ffmpeg_pipe = _popen(cmd.c_str(), "wb");
+    #else
+        FILE* ffmpeg_pipe = popen(cmd.c_str(), "w");
+    #endif
+
+    if (!ffmpeg_pipe) {
+        std::cerr << "Failed to open ffmpeg pipe! Please ensure ffmpeg is installed." << std::endl;
+    }
+
+    // 像素缓冲区
+    std::vector<unsigned char> rgb_buffer(width * height * 3);
+    // -------------------------
+
     std::cout << "Simulating " << config.name << "..." << std::endl;
 
     double T_total = 6.0;
-    // 60Hz 刷新率下，每帧运行约 17ms 物理步长以匹配实时速度
     const int steps_per_frame = 17;
 
     while (!glfwWindowShouldClose(window) && d->time < T_total) {
@@ -190,13 +209,11 @@ void run_simulation(const SimConfig& config) {
         for (int i = 0; i < steps_per_frame; ++i) {
              if (d->time >= T_total) break;
 
-            // --- 状态获取与符号修正 ---
-            // MuJoCo (Right+) vs LQR (Left+) -> Theta 取反
+            // ... 物理仿真步骤 (保持不变) ...
             double x = d->qpos[m->jnt_qposadr[jid_slide]];
-            double theta = -d->qpos[m->jnt_qposadr[jid_hinge]]; // 取反
-
+            double theta = -d->qpos[m->jnt_qposadr[jid_hinge]];
             double x_dot = d->qvel[m->jnt_dofadr[jid_slide]];
-            double theta_dot = -d->qvel[m->jnt_dofadr[jid_hinge]]; // 取反
+            double theta_dot = -d->qvel[m->jnt_dofadr[jid_hinge]];
 
             Eigen::Vector4d state;
             state << x, theta, x_dot, theta_dot;
@@ -206,20 +223,41 @@ void run_simulation(const SimConfig& config) {
 
             mj_step(m, d);
 
-            // Log (保存 LQR 视角的 theta)
             file << d->time << "," << x << "," << theta << "," << d->ctrl[aid_u] << "\n";
         }
 
         // Render
-        mjrRect viewport = {0, 0, 0, 0};
-        glfwGetFramebufferSize(window, &viewport.width, &viewport.height);
+        // [修改] 使用固定的 width/height，确保与 ffmpeg 设置一致
+        mjrRect viewport = {0, 0, width, height};
+
         mjv_updateScene(m, d, &opt, NULL, &cam, mjCAT_ALL, &scn);
         mjr_render(viewport, &scn, &con);
+
+        // --- [新增] 读取像素并写入视频 ---
+        if (ffmpeg_pipe) {
+            // 读取渲染后的像素到 buffer
+            mjr_readPixels(rgb_buffer.data(), nullptr, viewport, &con);
+            // 写入 ffmpeg 管道
+            fwrite(rgb_buffer.data(), 1, rgb_buffer.size(), ffmpeg_pipe);
+        }
+        // ------------------------------
+
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
 
     std::cout << "Simulation finished at t=" << d->time << "s" << std::endl;
+
+    // --- [新增] 关闭管道 ---
+    if (ffmpeg_pipe) {
+        #ifdef _WIN32
+            _pclose(ffmpeg_pipe);
+        #else
+            pclose(ffmpeg_pipe);
+        #endif
+        std::cout << "Video saved to " << video_filename << std::endl;
+    }
+    // ---------------------
 
     file.close();
     mjr_freeContext(&con);
@@ -227,6 +265,7 @@ void run_simulation(const SimConfig& config) {
     glfwDestroyWindow(window);
 }
 
+// main 函数保持不变
 int main(int argc, char** argv) {
     if (!glfwInit()) mju_error("Could not initialize GLFW");
 
