@@ -1,0 +1,44 @@
+<mujoco model="cartpole">
+  <compiler angle="radian"/>
+  <option timestep="0.001" gravity="0 0 -9.81" integrator="RK4"/>
+
+  <asset>
+    <texture type="2d" name="groundplane" builtin="checker" mark="edge" rgb1="0.2 0.3 0.4" rgb2="0.1 0.2 0.3" markrgb="0.8 0.8 0.8" width="300" height="300"/>
+    <material name="groundplane" texture="groundplane" texuniform="true" texrepeat="5 5" reflectance="0.2"/>
+  </asset>
+
+  <worldbody>
+    <light pos="0 0 1.5" dir="0 0 -1" directional="true"/>
+    <geom name="floor"
+          size="0 0 0.05"
+          type="plane"
+          material="groundplane"
+    />
+
+    <body name="cart" pos="0 0 0.03">
+      <joint name="slide" type="slide" axis="1 0 0"/>
+      <geom type="box" size="0.10 0.06 0.03" mass="1"/>
+      <body name="pole" pos="0 0 0" euler="0 3.1415926 0">
+        <joint name="hinge" type="hinge" axis="0 1 0"/>
+        <geom type="capsule" fromto="0 0 0  0 0 -0.3"
+              size="0.01" density="1e-6"
+              contype="2" conaffinity="2"/>
+        <body name="bob" pos="0 0 -0.3">
+          <geom type="sphere" size="0.0002" mass="0.2"
+                rgba="0.2 0.2 0.8 1"
+                contype="2" conaffinity="2"/>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <motor name="u" joint="slide" gear="1.0"/>
+  </actuator>
+
+  <keyframe>
+    <key name="start"
+         qpos="0 -0.523598776"
+         qvel="0 0"/>
+  </keyframe>
+</mujoco>
