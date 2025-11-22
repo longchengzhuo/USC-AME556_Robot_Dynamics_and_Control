@@ -3,10 +3,7 @@
  *
  * Stability Status: STABLE
  * Interaction: IMPROVED (Standard MuJoCo mouse/keyboard controls)
- *
- * Analysis of Success:
- * 1. Re-initializing solver every step avoids "Sparsity Pattern" crashes.
- * 2. NaNs are caught early, preventing physics explosions.
+ * Feature Added: Video Recording (saves to ../qp.mp4)
  */
 
 #include <iostream>
@@ -15,6 +12,7 @@
 #include <fstream>
 #include <cmath>
 #include <iomanip>
+#include <cstdio> // Added for popen
 
 // Eigen and QP Solver
 #include <Eigen/Dense>
@@ -30,7 +28,7 @@ const char* MODEL_PATH = "../robot.xml";
 const char* LOG_PATH = "../robot_data.csv";
 const char* DEBUG_LOG_PATH = "../debug_log.txt";
 
-const double SIM_DURATION = 50.0;
+const double SIM_DURATION = 5.0;
 const double STARTUP_DELAY = 0.1;
 
 // Controller Gains
@@ -42,7 +40,7 @@ const double KP_PITCH = 300.0;
 const double KD_PITCH = 60.0;
 
 // Safety constraints
-const double MU_CTRL = 0.5;
+const double MU_CTRL = 0.7;
 const double FZ_MIN = 0.0;
 const double FZ_MAX = 250.0;
 const double DESIRED_Z = 0.5;
@@ -85,14 +83,13 @@ bool has_nan(const Eigen::VectorXd& v, const std::string& name) {
     return false;
 }
 
-// --- Callbacks (Updated as requested) ---
+// --- Callbacks ---
 
 void keyboard(GLFWwindow* window, int key, int scancode, int act, int mods) {
     if (act == GLFW_PRESS && key == GLFW_KEY_SPACE) {
-        // Reset to keyframe 0 (initial)
         int key_id = mj_name2id(m, mjOBJ_KEY, "initial");
         if (key_id >= 0) mj_resetDataKeyframe(m, d, key_id);
-        else mj_resetData(m, d); // Fallback
+        else mj_resetData(m, d);
         mj_forward(m, d);
     }
 }
@@ -233,7 +230,7 @@ void run_qp_controller(mjModel* m, mjData* d) {
          debug_file << " JacL_00=" << J_L_T_red(0,0);
     }
 
-    // 5. QP Setup (RE-INIT EVERY STEP for stability)
+    // 5. QP Setup
     OsqpEigen::Solver solver;
 
     int n_constraints = 3 + 4 + 4 + 2;
@@ -296,7 +293,7 @@ void run_qp_controller(mjModel* m, mjData* d) {
     if (solver.solveProblem() == OsqpEigen::ErrorExitFlag::NoError) {
         Eigen::VectorXd sol = solver.getSolution();
 
-        // SANITY CHECK for Garbage Values (NaNs/Inf or Huge Ints)
+        // SANITY CHECK for Garbage Values
         if (std::abs(sol(0)) > 1e8 || std::isnan(sol(0))) {
              if(debug_file.is_open()) debug_file << " ERROR: Junk Value Detected (" << sol(0) << ") ";
              apply_damping(d);
@@ -333,6 +330,23 @@ int main() {
     glfwMakeContextCurrent(window);
     glfwSwapInterval(1);
 
+    // Video Recording Setup
+    int width, height;
+    glfwGetFramebufferSize(window, &width, &height); // Get actual buffer size (e.g. Retina x2)
+
+    unsigned char* rgb_buffer = new unsigned char[width * height * 3];
+
+    // Construct ffmpeg command
+    // -vf vflip: MuJoCo renders from bottom-left, video expects top-left
+    std::string cmd = "ffmpeg -y -f rawvideo -vcodec rawvideo -pix_fmt rgb24 -s " +
+                      std::to_string(width) + "x" + std::to_string(height) +
+                      " -r 60 -i - -vf vflip -an -c:v libx264 -pix_fmt yuv420p -preset fast ../qp.mp4";
+
+    FILE* ffmpeg_pipe = popen(cmd.c_str(), "w");
+    if (!ffmpeg_pipe) {
+        std::cerr << "Error: Could not open ffmpeg pipe. Ensure ffmpeg is installed." << std::endl;
+    }
+
     mjv_defaultCamera(&cam);
     mjv_defaultOption(&opt);
     mjv_defaultScene(&scn);
@@ -343,7 +357,6 @@ int main() {
     cam.lookat[0] = 0; cam.lookat[1] = 0; cam.lookat[2] = 0.5;
     cam.distance = 2.5; cam.azimuth = 90; cam.elevation = -10;
 
-    // Callbacks improved
     glfwSetCursorPosCallback(window, mouse_move);
     glfwSetMouseButtonCallback(window, mouse_button);
     glfwSetScrollCallback(window, scroll);
@@ -375,13 +388,26 @@ int main() {
         }
         if (std::isnan(d->qpos[0])) break;
 
-        mjrRect viewport = {0, 0, 0, 0};
-        glfwGetFramebufferSize(window, &viewport.width, &viewport.height);
+        mjrRect viewport = {0, 0, width, height};
+        // Note: If window resizes, width/height will mismatch.
+        // For recording, it's safer to keep window size fixed or update logic.
+        // We use the initial width/height to keep ffmpeg happy.
+
         mjv_updateScene(m, d, &opt, NULL, &cam, mjCAT_ALL, &scn);
         mjr_render(viewport, &scn, &con);
+
+        // Capture Video Frame
+        if (ffmpeg_pipe) {
+            mjr_readPixels(rgb_buffer, NULL, viewport, &con);
+            fwrite(rgb_buffer, 1, width * height * 3, ffmpeg_pipe);
+        }
+
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
+
+    if (ffmpeg_pipe) pclose(ffmpeg_pipe);
+    delete[] rgb_buffer;
 
     debug_file.close();
     dataFile.close();

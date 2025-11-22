@@ -91,3 +91,26 @@ Currently using GIFs. If they don't play automatically, please wait a few second
 ---
 
 ## Problem 2
+
+### a. QP Control
+
+<p align="center">
+  <img src="assets/robot_qp.gif" alt="Robot QP Control" width="66%">
+</p>
+<p align="center">
+  <em>Robot QP Control Simulation</em>
+</p>
+
+<p align="center">
+  <img src="assets/QP_xytheta.png" alt="QP x, y, theta Plot" width="66%">
+</p>
+<p align="center">
+  <em>QP Control States (x, y, theta)</em>
+</p>
+
+<p align="center">
+  <img src="assets/QP_Torque.png" alt="QP Torque Plot" width="66%">
+</p>
+<p align="center">
+  <em>QP Control Torques</em>
+</p>
