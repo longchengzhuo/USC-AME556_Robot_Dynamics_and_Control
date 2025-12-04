@@ -1,11 +1,3 @@
-/*
- * Biped Balancing QP Controller for MuJoCo
- *
- * Stability Status: STABLE
- * Interaction: IMPROVED (Standard MuJoCo mouse/keyboard controls)
- * Feature Added: Video Recording (saves to ../qp.mp4)
- */
-
 #include <iostream>
 #include <vector>
 #include <string>
