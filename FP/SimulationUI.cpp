@@ -1,6 +1,9 @@
 #include "SimulationUI.h"
-#include <cstring> // for memset
+#include "BipedRobot.h" // 需要引入 Robot 头文件以调用方法
+#include <cstring>
+#include <vector>
 
+// 全局变量定义
 mjModel* m = nullptr;
 mjData* d = nullptr;
 mjvCamera cam;
@@ -23,16 +26,38 @@ namespace SimulationUI {
     }
 
     void keyboard(GLFWwindow* window, int key, int scancode, int act, int mods) {
+        // === 关键修改: 获取 Robot 实例 ===
+        BipedRobot* robot = static_cast<BipedRobot*>(glfwGetWindowUserPointer(window));
+
+        // 退格键：强制硬重置 (保留作为底层调试用)
         if (act == GLFW_PRESS && key == GLFW_KEY_BACKSPACE) {
             mj_resetData(m, d);
             mj_forward(m, d);
         }
+
+        // 空格键：调用 Robot 的 resetToKeyframe
         if (act == GLFW_PRESS && key == GLFW_KEY_SPACE) {
-            // 按照 XML keyframe 重置
-            int key_id = mj_name2id(m, mjOBJ_KEY, "initial");
-            if (key_id >= 0) mj_resetDataKeyframe(m, d, key_id);
-            else mj_resetData(m, d);
-            mj_forward(m, d);
+            if (robot) {
+                robot->resetToKeyframe();
+            }
+        }
+
+        // R 键：调用 Robot 的 resetToState (自定义初始状态)
+        if (act == GLFW_PRESS && key == GLFW_KEY_R) {
+            if (robot) {
+                // 定义一个高空中的初始状态 (7维向量)
+                // [trunk_x, trunk_z, trunk_ry, left_hip, left_knee, right_hip, right_knee]
+                std::vector<double> custom_state = {
+                    0.0,   // x
+                    0.6,   // z (高空)
+                    0.0,   // rotate_y
+                    0.5,  // left hip (稍微抬起)
+                    -1.0,   // left knee (弯曲)
+                    1.0,  // right hip
+                    -1.0    // right knee
+                };
+                robot->resetToState(custom_state);
+            }
         }
     }
 

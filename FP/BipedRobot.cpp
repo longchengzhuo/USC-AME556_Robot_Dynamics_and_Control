@@ -35,8 +35,15 @@ void BipedRobot::freeFall() {
     step();
 }
 
-void BipedRobot::stand() {
-    // TODO: Implement QP controller or PD controller for standing
+void BipedRobot::stand(double target_x, double target_z, double target_pitch, double duration) {
+    // 调用通用控制器的站立计算方法
+    std::vector<double> torques = controller_.computeStandControl(m, d, target_x, target_z, target_pitch, duration);
+
+    // 应用力矩
+    for (int i = 0; i < m->nu && i < (int)torques.size(); ++i) {
+        d->ctrl[i] = torques[i];
+    }
+
     step();
 }
 

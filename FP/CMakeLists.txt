@@ -17,7 +17,6 @@ set(MUJOCO_DYLIB "${MUJOCO_VERSION_DIR}/libmujoco.3.3.6.dylib" CACHE FILEPATH "P
 function(configure_target target_name)
     target_compile_options(${target_name} PRIVATE "-F${MUJOCO_FRAMEWORKS}" "-iframework${MUJOCO_FRAMEWORKS}")
     target_include_directories(${target_name} PRIVATE "${MUJOCO_VERSION_DIR}/Headers")
-    # 链接 OsqpEigen, 它会自动链接 osqp
     target_link_libraries(${target_name} PRIVATE "${MUJOCO_DYLIB}" glfw Eigen3::Eigen OsqpEigen::OsqpEigen)
 
     get_filename_component(_mjlib_dir "${MUJOCO_DYLIB}" DIRECTORY)
@@ -25,11 +24,12 @@ function(configure_target target_name)
 endfunction()
 
 # 4. Executables
-# 将所有源文件加入编译列表
+# 将 StandController.cpp 替换为 RobotController.cpp
 add_executable(robot_sim
         main.cpp
         SimulationUI.cpp
         BipedRobot.cpp
+        RobotController.cpp
 )
 
 configure_target(robot_sim)
