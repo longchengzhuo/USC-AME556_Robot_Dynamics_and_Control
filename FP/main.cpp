@@ -1,12 +1,13 @@
 #include <iostream>
 #include <vector>
+#include <fstream> // [新增] 用于文件操作
 #include "mujoco/mujoco.h"
 #include <GLFW/glfw3.h>
 #include "SimulationUI.h"
 #include "BipedRobot.h"
 
 // 定义站立控制的目标参数
-const double DESIRED_Z = 4.5;
+const double DESIRED_Z = 0.45;
 const double DESIRED_X = 0.0;
 const double DESIRED_PITCH = 0.0;
 const double STAND_DURATION = 1.0; // 秒
@@ -19,6 +20,17 @@ int main(int argc, const char** argv) {
         return 1;
     }
     d = mj_makeData(m);
+
+    // [新增] 初始化数据记录文件
+    // 格式: Time, qpos(7), qvel(7), ctrl(4)
+    std::ofstream log_file("../robot_data.txt");
+    if (log_file.is_open()) {
+        log_file << "time";
+        for (int i = 0; i < m->nq; ++i) log_file << " q_" << i;
+        for (int i = 0; i < m->nv; ++i) log_file << " v_" << i;
+        for (int i = 0; i < m->nu; ++i) log_file << " u_" << i;
+        log_file << "\n";
+    }
 
     if (!glfwInit()) return 1;
     GLFWwindow* window = glfwCreateWindow(1200, 900, "MuJoCo Biped Simulation", NULL, NULL);
@@ -50,10 +62,19 @@ int main(int argc, const char** argv) {
             if (!robot.getWarningMessage().empty()) {
                 break;
             }
-            robot.freeFall();
-            // === 修改处：使用 stand 替代 freeFall ===
-            // 每一帧都将目标参数传入控制器
-            // robot.stand(DESIRED_X, DESIRED_Z, DESIRED_PITCH, STAND_DURATION);
+            // robot.freeFall();
+            // 执行控制与步进
+            robot.stand(DESIRED_X, DESIRED_Z, DESIRED_PITCH, STAND_DURATION);
+
+            // [新增] 记录当前帧的所有状态数据
+            // 此时 robot.stand 已调用 mj_step，数据为最新状态
+            if (log_file.is_open()) {
+                log_file << d->time;
+                for (int i = 0; i < m->nq; ++i) log_file << " " << d->qpos[i];
+                for (int i = 0; i < m->nv; ++i) log_file << " " << d->qvel[i];
+                for (int i = 0; i < m->nu; ++i) log_file << " " << d->ctrl[i];
+                log_file << "\n";
+            }
         }
 
         mjrRect viewport = {0, 0, 0, 0};
@@ -74,6 +95,9 @@ int main(int argc, const char** argv) {
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
+
+    // 资源清理
+    if (log_file.is_open()) log_file.close();
 
     mjv_freeScene(&scn);
     mjr_freeContext(&con);
