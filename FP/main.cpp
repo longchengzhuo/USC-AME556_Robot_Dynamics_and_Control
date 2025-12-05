@@ -1,13 +1,13 @@
 #include <iostream>
 #include <vector>
-#include <fstream> // [新增] 用于文件操作
+#include <fstream>
 #include "mujoco/mujoco.h"
 #include <GLFW/glfw3.h>
 #include "SimulationUI.h"
 #include "BipedRobot.h"
 
 // 定义站立控制的目标参数
-const double DESIRED_Z = 0.55;
+const double DESIRED_Z = 0.55; // 修正为合理的站立高度
 const double DESIRED_X = 0.0;
 const double DESIRED_PITCH = 0.0;
 const double STAND_DURATION = 1.0; // 秒
@@ -21,8 +21,7 @@ int main(int argc, const char** argv) {
     }
     d = mj_makeData(m);
 
-    // [新增] 初始化数据记录文件
-    // 格式: Time, qpos(7), qvel(7), ctrl(4)
+    // 初始化数据记录文件
     std::ofstream log_file("../robot_data.txt");
     if (log_file.is_open()) {
         log_file << "time";
@@ -56,18 +55,26 @@ int main(int argc, const char** argv) {
     cam.distance = 1.5;
     cam.lookat[2] = 0.5;
 
+    // === [新增] 初始化视频录制器 ===
+    SimulationUI::VideoRecorder recorder;
+    int fbw, fbh;
+    glfwGetFramebufferSize(window, &fbw, &fbh);
+    // 录制到上级目录的 test.mp4，帧率设为 60
+    if (!recorder.Start("../test.mp4", fbw, fbh, 60)) {
+        std::cerr << "Warning: Video recording failed to start." << std::endl;
+    }
+
     while (!glfwWindowShouldClose(window)) {
         mjtNum simstart = d->time;
         while (d->time - simstart < 1.0/60.0) {
             if (!robot.getWarningMessage().empty()) {
                 break;
             }
-            // robot.freeFall();
+
             // 执行控制与步进
             robot.stand(DESIRED_X, DESIRED_Z, DESIRED_PITCH, STAND_DURATION);
 
-            // [新增] 记录当前帧的所有状态数据
-            // 此时 robot.stand 已调用 mj_step，数据为最新状态
+            // 记录数据
             if (log_file.is_open()) {
                 log_file << d->time;
                 for (int i = 0; i < m->nq; ++i) log_file << " " << d->qpos[i];
@@ -83,6 +90,10 @@ int main(int argc, const char** argv) {
         mjv_updateScene(m, d, &opt, NULL, &cam, mjCAT_ALL, &scn);
         mjr_render(viewport, &scn, &con);
 
+        // === [新增] 录制当前帧 ===
+        // 在渲染(render)之后，交换缓冲区(SwapBuffers)之前调用
+        recorder.RecordFrame(viewport, &con);
+
         char time_str[50];
         sprintf(time_str, "Time: %.2f s", d->time);
         mjr_overlay(mjFONT_NORMAL, mjGRID_TOPLEFT, viewport, time_str, NULL, &con);
@@ -96,7 +107,9 @@ int main(int argc, const char** argv) {
         glfwPollEvents();
     }
 
-    // 资源清理
+    // === [新增] 停止录制 ===
+    recorder.Stop();
+
     if (log_file.is_open()) log_file.close();
 
     mjv_freeScene(&scn);

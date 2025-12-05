@@ -1,6 +1,7 @@
 #pragma once
 #include "mujoco/mujoco.h"
 #include <GLFW/glfw3.h>
+#include <cstdio> // FILE*
 
 extern mjModel* m;
 extern mjData* d;
@@ -20,4 +21,26 @@ namespace SimulationUI {
     void mouse_button(GLFWwindow* window, int button, int act, int mods);
     void mouse_move(GLFWwindow* window, double xpos, double ypos);
     void scroll(GLFWwindow* window, double xoffset, double yoffset);
+
+    // === [新增] 视频录制器类 ===
+    class VideoRecorder {
+    public:
+        VideoRecorder();
+        ~VideoRecorder();
+
+        // 开始录制
+        bool Start(const char* filename, int width, int height, int fps);
+
+        // 捕获一帧并写入管道
+        void RecordFrame(const mjrRect& viewport, const mjrContext* con);
+
+        // 停止录制
+        void Stop();
+
+    private:
+        FILE* ffmpeg_pipe_;
+        unsigned char* image_buffer_;
+        int width_;
+        int height_;
+    };
 }
