@@ -21,28 +21,39 @@ std::vector<double> RobotController::computeStandControl(const mjModel* m, const
     debug_log << "=== Time: " << d->time << " ===\n";
 
     // ==========================================
-    // [新增] 0. 物理模型体检 (Physics Diagnostics)
+    // 0. 物理模型体检 (Physics Diagnostics)
     // ==========================================
-    // 检查1: 躯干质量
     int trunk_id = mj_name2id(m, mjOBJ_BODY, "trunk");
     double trunk_mass = (trunk_id >= 0) ? m->body_mass[trunk_id] : -1.0;
     debug_log << "0. Diagnostics: Trunk_Mass=" << trunk_mass << " Total_Mass=" << m->body_subtreemass[0] << "\n";
 
-    // 检查2: 纯重力项 (Gravity Compensation Term)
-    // 计算当 qacc = 0 时，ID 输出多少力。这代表了维持静止所需的力 (G项)
+    // 准备诊断用的 data 副本
     mjData* d_diag = const_cast<mjData*>(d);
+
+    // 备份现场
     std::vector<mjtNum> qacc_backup(nv);
+    std::vector<mjtNum> qvel_backup(nv); // [新增] 备份速度
+    std::vector<mjtNum> qfrc_constraint_backup(nv);
     mju_copy(qacc_backup.data(), d->qacc, nv);
+    mju_copy(qvel_backup.data(), d->qvel, nv); // [新增]
+    mju_copy(qfrc_constraint_backup.data(), d->qfrc_constraint, nv);
 
-    mju_zero(d_diag->qacc, nv); // 设加速度为0
-    mj_inverse(m, d_diag);      // 计算 ID
+    // [净化环境]
+    mju_zero(d_diag->qfrc_constraint, nv);
+    mju_zero(d_diag->qvel, nv); // [关键修复] 清除速度，消除阻尼/软接触的瞬态干扰
+    mju_zero(d_diag->qacc, nv);
 
-    // 获取 Base Z 方向的重力补偿力
+    mj_inverse(m, d_diag); // 计算纯静态重力补偿
+
     double gravity_comp_force_z = d_diag->qfrc_inverse[1];
-    debug_log << "0. Diagnostics: Gravity_Comp_Force_Z (should be approx +mg) = " << gravity_comp_force_z << "\n";
+    debug_log << "0. Diagnostics: Gravity_Comp_Force_Z (Expected ~88N) = " << gravity_comp_force_z << "\n";
 
-    // 恢复 qacc
+    // [漏掉的关键步骤 - 必须修复]
+    // 诊断结束后，必须立即恢复现场！
+    // 否则下面的 "1. PD Control" 读到的 v_x, v_z 全是 0，导致 PD 的 D 项（阻尼）失效！
     mju_copy(d_diag->qacc, qacc_backup.data(), nv);
+    mju_copy(d_diag->qvel, qvel_backup.data(), nv);
+    mju_copy(d_diag->qfrc_constraint, qfrc_constraint_backup.data(), nv);
 
     // ==========================================
     // 1. PD Control
@@ -99,13 +110,21 @@ std::vector<double> RobotController::computeStandControl(const mjModel* m, const
     // ==========================================
     // 3. Inverse Dynamics
     // ==========================================
+    // [关键修复] 保持环境纯净：无约束力，无速度 (Quasi-Static assumption for ID)
+    // 这能保证 ID 输出正确的重力补偿项，不会被瞬态效应带偏
+    // 因为前面我们在第 0 步后恢复了数据，所以这里必须再次清零
+    mju_zero(d_diag->qfrc_constraint, nv);
+    mju_zero(d_diag->qvel, nv);
+
     for(int i=0; i<nv; ++i) d_diag->qacc[i] = qacc_total_des(i);
     mj_inverse(m, d_diag);
     Eigen::VectorXd ID_target(nv);
     for(int i=0; i<nv; ++i) ID_target(i) = d->qfrc_inverse[i];
 
-    // 恢复现场
+    // 恢复所有现场
     mju_copy(d_diag->qacc, qacc_backup.data(), nv);
+    mju_copy(d_diag->qvel, qvel_backup.data(), nv); // 恢复速度
+    mju_copy(d_diag->qfrc_constraint, qfrc_constraint_backup.data(), nv);
 
     debug_log << "3. ID_Target_Torque: " << ID_target.transpose() << "\n";
 
@@ -161,10 +180,16 @@ std::vector<double> RobotController::computeStandControl(const mjModel* m, const
     solver.data()->setLowerBound(l);
     solver.data()->setUpperBound(u);
 
+    // [Safety Check] 防止 QP 崩溃输出垃圾值
     if(solver.initSolver() && solver.solveProblem() == OsqpEigen::ErrorExitFlag::NoError) {
         Eigen::VectorXd sol = solver.getSolution();
-        for(int i=0; i<nu; ++i) torques[i] = sol(i);
-        debug_log << "4. QP_Solution: " << sol.transpose() << "\n";
+        // 检查是否有极端值 (例如 > 1e6)
+        if (sol.norm() < 1e6) {
+            for(int i=0; i<nu; ++i) torques[i] = sol(i);
+            debug_log << "4. QP_Solution: " << sol.transpose() << "\n";
+        } else {
+             debug_log << "4. QP_SOLUTION_GARBAGE! Ignored.\n";
+        }
     } else {
         debug_log << "4. QP_FAILED. Defaulting to 0 torque.\n";
     }

@@ -7,7 +7,7 @@
 #include "BipedRobot.h"
 
 // 定义站立控制的目标参数
-const double DESIRED_Z = 0.45;
+const double DESIRED_Z = 0.55;
 const double DESIRED_X = 0.0;
 const double DESIRED_PITCH = 0.0;
 const double STAND_DURATION = 1.0; // 秒
