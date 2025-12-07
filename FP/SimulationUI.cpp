@@ -26,6 +26,33 @@ namespace SimulationUI {
         mjr_defaultContext(&con);
     }
 
+    // === [新增] 封装后的初始化函数 ===
+    GLFWwindow* SetupWindow(mjModel* m, const char* title) {
+        if (!glfwInit()) return nullptr;
+
+        GLFWwindow* window = glfwCreateWindow(1200, 900, title, NULL, NULL);
+        if (!window) {
+            glfwTerminate();
+            return nullptr;
+        }
+
+        glfwMakeContextCurrent(window);
+        glfwSwapInterval(1);
+
+        // 初始化 MuJoCo 可视化结构
+        Init();
+        mjv_makeScene(m, &scn, 2000);
+        mjr_makeContext(m, &con, mjFONTSCALE_150);
+
+        // 统一绑定回调
+        glfwSetKeyCallback(window, keyboard);
+        glfwSetCursorPosCallback(window, mouse_move);
+        glfwSetMouseButtonCallback(window, mouse_button);
+        glfwSetScrollCallback(window, scroll);
+
+        return window;
+    }
+
     void keyboard(GLFWwindow* window, int key, int scancode, int act, int mods) {
         BipedRobot* robot = static_cast<BipedRobot*>(glfwGetWindowUserPointer(window));
 
@@ -86,7 +113,7 @@ namespace SimulationUI {
         mjv_moveCamera(m, mjMOUSE_ZOOM, 0, -0.05 * yoffset, &scn, &cam);
     }
 
-    // === [新增] 视频录制器实现 ===
+    // === 视频录制器实现 ===
     VideoRecorder::VideoRecorder() : ffmpeg_pipe_(nullptr), image_buffer_(nullptr), width_(0), height_(0) {}
 
     VideoRecorder::~VideoRecorder() {
@@ -96,17 +123,8 @@ namespace SimulationUI {
     bool VideoRecorder::Start(const char* filename, int width, int height, int fps) {
         width_ = width;
         height_ = height;
-        // 分配 RGB 缓冲区 (3 bytes per pixel)
         image_buffer_ = new unsigned char[width * height * 3];
 
-        // 构建 ffmpeg 命令
-        // -y: 覆盖输出文件
-        // -f rawvideo -vcodec rawvideo -pix_fmt rgb24: 输入格式为原始 RGB
-        // -s WxH: 分辨率
-        // -r fps: 帧率
-        // -i -: 从标准输入读取
-        // -vf vflip: 垂直翻转 (因为 OpenGL 是左下角原点)
-        // -c:v libx264 -preset fast -pix_fmt yuv420p: 编码为兼容性好的 H.264 MP4
         char cmd[1024];
         sprintf(cmd, "ffmpeg -y -loglevel error -f rawvideo -vcodec rawvideo -pix_fmt rgb24 -s %dx%d -r %d -i - -vf vflip -an -c:v libx264 -preset fast -pix_fmt yuv420p \"%s\"",
                 width, height, fps, filename);
@@ -129,17 +147,11 @@ namespace SimulationUI {
     void VideoRecorder::RecordFrame(const mjrRect& viewport, const mjrContext* con) {
         if (!ffmpeg_pipe_) return;
 
-        // 简单的尺寸检查，防止窗口缩放导致 ffmpeg 数据流错乱
         if (viewport.width != width_ || viewport.height != height_) {
-            // 如果窗口大小变了，简单起见我们跳过这一帧，或者你应该在 Start 时锁定窗口大小
-            // 这里我们只录制初始化时的大小
             return;
         }
 
-        // 读取 OpenGL 像素
         mjr_readPixels(image_buffer_, nullptr, viewport, con);
-
-        // 写入管道
         fwrite(image_buffer_, 1, width_ * height_ * 3, ffmpeg_pipe_);
     }
 

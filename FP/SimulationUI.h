@@ -3,6 +3,7 @@
 #include <GLFW/glfw3.h>
 #include <cstdio> // FILE*
 
+// 全局变量声明 (在 cpp 中定义)
 extern mjModel* m;
 extern mjData* d;
 extern mjvCamera cam;
@@ -16,25 +17,24 @@ extern double lastx;
 extern double lasty;
 
 namespace SimulationUI {
-    void Init(); // 初始化 UI 变量
+    // === [新增] 一键初始化窗口和 MuJoCo 上下文 ===
+    // 自动处理 glfwInit, Window 创建, Scene/Context 初始化, 回调绑定
+    GLFWwindow* SetupWindow(mjModel* m, const char* title = "MuJoCo Simulation");
+
+    void Init(); // 初始化 UI 变量结构体
     void keyboard(GLFWwindow* window, int key, int scancode, int act, int mods);
     void mouse_button(GLFWwindow* window, int button, int act, int mods);
     void mouse_move(GLFWwindow* window, double xpos, double ypos);
     void scroll(GLFWwindow* window, double xoffset, double yoffset);
 
-    // === [新增] 视频录制器类 ===
+    // === 视频录制器类 ===
     class VideoRecorder {
     public:
         VideoRecorder();
         ~VideoRecorder();
 
-        // 开始录制
         bool Start(const char* filename, int width, int height, int fps);
-
-        // 捕获一帧并写入管道
         void RecordFrame(const mjrRect& viewport, const mjrContext* con);
-
-        // 停止录制
         void Stop();
 
     private:
