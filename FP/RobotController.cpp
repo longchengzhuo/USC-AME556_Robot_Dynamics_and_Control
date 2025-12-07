@@ -20,40 +20,8 @@ std::vector<double> RobotController::computeStandControl(const mjModel* m, const
     debug_log << std::fixed << std::setprecision(4);
     debug_log << "=== Time: " << d->time << " ===\n";
 
-    // ==========================================
-    // 0. 物理模型体检 (Physics Diagnostics)
-    // ==========================================
-    int trunk_id = mj_name2id(m, mjOBJ_BODY, "trunk");
-    double trunk_mass = (trunk_id >= 0) ? m->body_mass[trunk_id] : -1.0;
-    debug_log << "0. Diagnostics: Trunk_Mass=" << trunk_mass << " Total_Mass=" << m->body_subtreemass[0] << "\n";
-
     // 准备诊断用的 data 副本
     mjData* d_diag = const_cast<mjData*>(d);
-
-    // 备份现场
-    std::vector<mjtNum> qacc_backup(nv);
-    std::vector<mjtNum> qvel_backup(nv); // [新增] 备份速度
-    std::vector<mjtNum> qfrc_constraint_backup(nv);
-    mju_copy(qacc_backup.data(), d->qacc, nv);
-    mju_copy(qvel_backup.data(), d->qvel, nv); // [新增]
-    mju_copy(qfrc_constraint_backup.data(), d->qfrc_constraint, nv);
-
-    // [净化环境]
-    mju_zero(d_diag->qfrc_constraint, nv);
-    mju_zero(d_diag->qvel, nv); // [关键修复] 清除速度，消除阻尼/软接触的瞬态干扰
-    mju_zero(d_diag->qacc, nv);
-
-    mj_inverse(m, d_diag); // 计算纯静态重力补偿
-
-    double gravity_comp_force_z = d_diag->qfrc_inverse[1];
-    debug_log << "0. Diagnostics: Gravity_Comp_Force_Z (Expected ~88N) = " << gravity_comp_force_z << "\n";
-
-    // [漏掉的关键步骤 - 必须修复]
-    // 诊断结束后，必须立即恢复现场！
-    // 否则下面的 "1. PD Control" 读到的 v_x, v_z 全是 0，导致 PD 的 D 项（阻尼）失效！
-    mju_copy(d_diag->qacc, qacc_backup.data(), nv);
-    mju_copy(d_diag->qvel, qvel_backup.data(), nv);
-    mju_copy(d_diag->qfrc_constraint, qfrc_constraint_backup.data(), nv);
 
     // ==========================================
     // 1. PD Control
@@ -110,21 +78,12 @@ std::vector<double> RobotController::computeStandControl(const mjModel* m, const
     // ==========================================
     // 3. Inverse Dynamics
     // ==========================================
-    // [关键修复] 保持环境纯净：无约束力，无速度 (Quasi-Static assumption for ID)
-    // 这能保证 ID 输出正确的重力补偿项，不会被瞬态效应带偏
-    // 因为前面我们在第 0 步后恢复了数据，所以这里必须再次清零
-    mju_zero(d_diag->qfrc_constraint, nv);
-    mju_zero(d_diag->qvel, nv);
 
     for(int i=0; i<nv; ++i) d_diag->qacc[i] = qacc_total_des(i);
-    mj_inverse(m, d_diag);
+    mj_rne(m, d_diag, 1, d_diag->qfrc_inverse);
     Eigen::VectorXd ID_target(nv);
     for(int i=0; i<nv; ++i) ID_target(i) = d->qfrc_inverse[i];
 
-    // 恢复所有现场
-    mju_copy(d_diag->qacc, qacc_backup.data(), nv);
-    mju_copy(d_diag->qvel, qvel_backup.data(), nv); // 恢复速度
-    mju_copy(d_diag->qfrc_constraint, qfrc_constraint_backup.data(), nv);
 
     debug_log << "3. ID_Target_Torque: " << ID_target.transpose() << "\n";
 

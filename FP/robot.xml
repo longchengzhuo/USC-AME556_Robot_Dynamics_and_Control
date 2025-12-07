@@ -40,11 +40,11 @@
       <body name="right_thigh" pos="0 0 -0.125">
         <inertial pos="0 0 -0.11" mass="0.25" diaginertia="0.0010083 0.0010083 1e-6"/>
         <joint name="right_hip" type="hinge" axis="0 1 0" damping="0.1"/>
-        <geom name="right_thigh_geom" fromto="0 0 0 0 0 -0.22" type="capsule" size="0.03" rgba="0.2 0.2 0.8 1"/>
+        <geom name="right_thigh_geom" fromto="0 0 0 0 0 -0.22" type="capsule" size="0.03" rgba="0.8 0.2 0.8 1"/>
         <body name="right_shin" pos="0 0 -0.22">
           <inertial pos="0 0 -0.11" mass="0.25" diaginertia="0.0010083 0.0010083 1e-6"/>
           <joint name="right_knee" type="hinge" axis="0 1 0" damping="0.1"/>
-          <geom name="right_shin_geom" fromto="0 0 0 0 0 -0.22" type="capsule" size="0.03" rgba="0.2 0.2 0.8 1"/>
+          <geom name="right_shin_geom" fromto="0 0 0 0 0 -0.22" type="capsule" size="0.03" rgba="0.8 0.2 0.8 1"/>
           <site name="right_foot" pos="0 0 -0.22" size="0.02" rgba="1 0 0 1"/>
         </body>
       </body>
