@@ -108,7 +108,7 @@ namespace SimulationUI {
         // -vf vflip: 垂直翻转 (因为 OpenGL 是左下角原点)
         // -c:v libx264 -preset fast -pix_fmt yuv420p: 编码为兼容性好的 H.264 MP4
         char cmd[1024];
-        sprintf(cmd, "ffmpeg -y -f rawvideo -vcodec rawvideo -pix_fmt rgb24 -s %dx%d -r %d -i - -vf vflip -an -c:v libx264 -preset fast -pix_fmt yuv420p \"%s\"",
+        sprintf(cmd, "ffmpeg -y -loglevel error -f rawvideo -vcodec rawvideo -pix_fmt rgb24 -s %dx%d -r %d -i - -vf vflip -an -c:v libx264 -preset fast -pix_fmt yuv420p \"%s\"",
                 width, height, fps, filename);
 
         std::cout << "[VideoRecorder] Start recording to " << filename << " (" << width << "x" << height << " @ " << fps << "fps)" << std::endl;
