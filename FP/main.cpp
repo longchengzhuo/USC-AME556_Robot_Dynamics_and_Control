@@ -52,6 +52,19 @@ public:
         return current_target_z;
     }
 
+    // [新增] 任务三：先稳定站立，后行走
+    void task_three() {
+        // 前 1.0 秒：稳定在 0.48 米高度
+        // 使用与 task_two 类似的 stand 方法，但固定高度
+        if (d_->time < 1.0) {
+            robot_.stand(DESIRED_X, 0.48, DESIRED_PITCH, STAND_DURATION);
+        }
+        // 1.0 秒后：以 0.5 m/s 速度行走
+        else {
+            robot_.walk(0.5);
+        }
+    }
+
 private:
     BipedRobot& robot_;
     mjModel* m_;
@@ -101,8 +114,11 @@ int main(int argc, const char** argv) {
         mjtNum simstart = d->time;
         while (d->time - simstart < 1.0/60.0) {
             if (!robot.getWarningMessage().empty()) break;
+
+            // 切换任务：这里注释掉 task_two，调用 task_three
             // task.task_one();
-            double target_z = task.task_two();
+            // double target_z = task.task_two();
+            task.task_three();
         }
 
         // 渲染与UI更新
