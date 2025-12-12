@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include <cmath>
+#include <fstream> // [新增] 引入文件流
 #include "RobotController.h"
 
 // 定义机器人状态枚举
@@ -17,6 +18,7 @@ enum class RobotState {
 class BipedRobot {
 public:
     BipedRobot(mjModel* model, mjData* data);
+    ~BipedRobot(); // [新增] 析构函数用于关闭日志
 
     void step();
     void freeFall();
@@ -24,7 +26,7 @@ public:
     // 静态站立
     void stand(double target_x, double target_z, double target_pitch, double duration);
 
-    // [新增] 迈步任务
+    // 迈步任务
     void walk();
 
     void resetToKeyframe();
@@ -51,6 +53,10 @@ private:
     double walk_start_time_;
     Eigen::Vector3d swing_init_pos_;
     Eigen::Vector3d swing_target_pos_;
+
+    // [新增] 状态日志文件
+    std::ofstream state_log_file_;
+    void logState(); // 埋点函数
 
     // 辅助函数
     void checkConstraints();

@@ -24,6 +24,71 @@ BipedRobot::BipedRobot(mjModel* model, mjData* data) : m(model), d(data) {
     // 初始化状态机
     current_state_ = RobotState::IDLE;
     walk_start_time_ = 0.0;
+
+    // [新增] 初始化状态日志
+    state_log_file_.open("../robot_state.csv");
+    if (state_log_file_.is_open()) {
+        state_log_file_ << "Time";
+        // 7 DoF Pos (qpos)
+        state_log_file_ << ",q_x,q_z,q_pitch,q_lh,q_lk,q_rh,q_rk";
+        // 7 DoF Vel (qvel)
+        state_log_file_ << ",v_x,v_z,v_pitch,v_lh,v_lk,v_rh,v_rk";
+        // Left Foot (Pos + Vel)
+        state_log_file_ << ",lf_x,lf_y,lf_z,lf_vx,lf_vy,lf_vz";
+        // Right Foot (Pos + Vel)
+        state_log_file_ << ",rf_x,rf_y,rf_z,rf_vx,rf_vy,rf_vz";
+        state_log_file_ << "\n";
+    } else {
+        std::cerr << "Failed to open robot_state.csv" << std::endl;
+    }
+}
+
+// [新增] 析构函数
+BipedRobot::~BipedRobot() {
+    if (state_log_file_.is_open()) {
+        state_log_file_.close();
+    }
+}
+
+// [新增] 埋点函数：记录详细状态
+void BipedRobot::logState() {
+    if (!state_log_file_.is_open()) return;
+
+    state_log_file_ << d->time;
+
+    // 1. 记录 7 DoF 关节位置
+    for (int i = 0; i < m->nq; ++i) {
+        state_log_file_ << "," << d->qpos[i];
+    }
+    // 2. 记录 7 DoF 关节速度
+    for (int i = 0; i < m->nv; ++i) {
+        state_log_file_ << "," << d->qvel[i];
+    }
+
+    // 3. 计算并记录脚部状态
+    auto log_foot = [&](int site_id) {
+        // 位置直接从 site_xpos 获取
+        double* pos = d->site_xpos + 3 * site_id;
+        state_log_file_ << "," << pos[0] << "," << pos[1] << "," << pos[2];
+
+        // 速度需要通过雅可比矩阵计算: v = J * qvel
+        // 分配雅可比矩阵内存 (3 x nv)
+        std::vector<mjtNum> J(3 * m->nv);
+        mj_jacSite(m, d, J.data(), nullptr, site_id);
+
+        double vx = 0, vy = 0, vz = 0;
+        for (int i = 0; i < m->nv; ++i) {
+            vx += J[0 * m->nv + i] * d->qvel[i];
+            vy += J[1 * m->nv + i] * d->qvel[i];
+            vz += J[2 * m->nv + i] * d->qvel[i];
+        }
+        state_log_file_ << "," << vx << "," << vy << "," << vz;
+    };
+
+    log_foot(id_left_foot_site_);
+    log_foot(id_right_foot_site_);
+
+    state_log_file_ << "\n";
 }
 
 void BipedRobot::enforceTorqueLimits(std::vector<double>& torques) {
@@ -41,6 +106,10 @@ void BipedRobot::enforceTorqueLimits(std::vector<double>& torques) {
 void BipedRobot::step() {
     if (is_violated_) return;
     mj_step(m, d);
+
+    // [新增] 每次物理步进后记录状态
+    logState();
+
     checkConstraints();
 }
 
@@ -78,7 +147,7 @@ void BipedRobot::stand(double target_x, double target_z, double target_pitch, do
     step();
 }
 
-// [修改] 迈步任务实现：应用动力学分析后的修正
+// [修改] 迈步任务实现：应用“蓄力爆发 + Raibert Heuristic”策略
 void BipedRobot::walk() {
     double t_now = d->time;
 
@@ -93,36 +162,37 @@ void BipedRobot::walk() {
     }
 
     RobotController::WalkCommand cmd;
-    // 默认保持参数 (与 Stand 一致)
+    // 默认保持参数
     cmd.trunk_z_des = 0.48;
     cmd.trunk_pitch_des = 0.0;
     cmd.trunk_x_vel_des = 0.0;
 
     // 阶段参数
-    // [修正] 增加摆动时间以减小加速度峰值
-    double T_shift = 0.5; // 重心转移时间
-    double T_swing = 0.8; // 摆动时间 (原 0.6，增加到 0.8 减缓冲击)
+    // Phase 1 稍微缩短，Phase 2 保持平滑
+    double T_shift = 0.4;
+    double T_swing = 0.8;
 
     double t_task = t_now - walk_start_time_;
 
     // FSM Logic
     if (current_state_ == RobotState::WALK_WEIGHT_SHIFT) {
-        // Phase 1: 重心转移
+        // Phase 1: 蓄力爆发 (双脚支撑)
         cmd.left_contact = true;
         cmd.right_contact = true;
 
-        // 关键：将躯干 X 向右(前)推一点，使左脚变轻
-        cmd.trunk_x_vel_des = 0.1;
+        // [策略核心]
+        // 利用后脚还在地上的机会，疯狂加速！
+        // 只有双脚都在，才能产生巨大的向前推力而不翻车
+        cmd.trunk_x_vel_des = 0.6; // 目标速度设高
 
-        // [修正] 允许 Pitch 前倾，利用重力辅助起步
-        cmd.trunk_pitch_des = 0.1; // 约 5.7度前倾
-
-        // 权重配置：双脚硬接触，摆动权重为0
-        cmd.w_trunk_z = 300;
-        cmd.w_trunk_pitch = 300;
-        // [修正] 增加 X 权重，确保重心真的移过去
-        cmd.w_trunk_x = 100.0;
+        // 权重配置：X 轴权重拉满
+        cmd.w_trunk_z = 200;
+        cmd.w_trunk_pitch = 200;
+        cmd.w_trunk_x = 500.0; // 这里的优先级必须最高！
         cmd.w_swing_pos = 0.0;
+
+        // 稍微前倾，辅助加速
+        cmd.trunk_pitch_des = 0.05;
 
         if (t_task > T_shift) {
             current_state_ = RobotState::WALK_SWING;
@@ -130,14 +200,22 @@ void BipedRobot::walk() {
             swing_init_pos_ << d->site_xpos[3*id_left_foot_site_],
                                d->site_xpos[3*id_left_foot_site_+1],
                                d->site_xpos[3*id_left_foot_site_+2];
-            // 设定目标点：向前迈 0.2m
+
+            // [关键修正] 计算落脚点时必须包含身体的预估位移 (Raibert Heuristic)
+            // 目标位置 = 初始位置 + 身体位移 + 实际步长
+            // 身体预估位移 = 目标速度 * 摆动时间
             swing_target_pos_ = swing_init_pos_;
-            swing_target_pos_(0) += 0.2; // 向前 0.2m
-            std::cout << "[FSM] Switch to SWING at t=" << t_now << std::endl;
+            double estimated_body_dist = cmd.trunk_x_vel_des * T_swing; // 0.6 * 0.8 = 0.48m
+            double step_length = 0.25; // 物理步长
+            swing_target_pos_(0) += estimated_body_dist + step_length;
+
+            std::cout << "[FSM] Switch to SWING at t=" << t_now
+                      << ". Target Step (Relative): " << (estimated_body_dist + step_length)
+                      << " [Body Est: " << estimated_body_dist << " + Step: " << step_length << "]" << std::endl;
         }
 
     } else if (current_state_ == RobotState::WALK_SWING) {
-        // Phase 2: 左脚摆动
+        // Phase 2: 惯性滑行 (单脚支撑)
         cmd.left_contact = false;
         cmd.right_contact = true;
 
@@ -149,15 +227,15 @@ void BipedRobot::walk() {
         cmd.swing_vel_des = getBezierVel(s, T_swing, swing_init_pos_, swing_target_pos_);
         cmd.swing_acc_des = getBezierAcc(s, T_swing, swing_init_pos_, swing_target_pos_);
 
-        // 权重配置
+        // 权重配置：此时姿态最重要
         cmd.w_trunk_z = 300;
-        cmd.w_trunk_pitch = 200; // [修正] 降低 Pitch 权重，允许身体为了平衡 X 动量而微调
-        cmd.w_trunk_x = 100.0;   // [修正] 保持 X 权重，对抗后坐力
-        cmd.w_swing_pos = 300;   // 强追踪摆动轨迹
+        cmd.w_trunk_pitch = 500.0; // 锁死 Pitch，防止扑街
+        cmd.w_trunk_x = 10.0;      // [策略核心] 此时放弃 X 加速，允许自然滑行/减速
+        cmd.w_swing_pos = 200;     // 柔顺摆腿
 
-        // [修正] 维持前倾姿态和前向速度
-        cmd.trunk_pitch_des = 0.1;
-        cmd.trunk_x_vel_des = 0.2;
+        // 目标速度稍微降低，允许减速
+        cmd.trunk_x_vel_des = 0.3;
+        cmd.trunk_pitch_des = 0.05; // 保持微前倾
 
         if (s >= 1.0) {
             current_state_ = RobotState::WALK_LAND;
@@ -165,21 +243,21 @@ void BipedRobot::walk() {
         }
 
     } else if (current_state_ == RobotState::WALK_LAND) {
-        // Phase 3: 落地平衡
+        // Phase 3: 落地刹车
         cmd.left_contact = true;
         cmd.right_contact = true;
 
-        // 恢复直立，停止向前
-        cmd.trunk_pitch_des = 0.0;
+        // 刹车
         cmd.trunk_x_vel_des = 0.0;
+        cmd.trunk_pitch_des = 0.0;
 
         cmd.w_trunk_z = 300;
         cmd.w_trunk_pitch = 300;
-        cmd.w_trunk_x = 100.0; // 保持阻尼
+        cmd.w_trunk_x = 200.0; // 恢复阻尼
         cmd.w_swing_pos = 0.0;
     }
 
-    // 调用新的控制器
+    // 调用控制器
     std::vector<double> torques = controller_.computeWalkStepControl(m, d, cmd);
     enforceTorqueLimits(torques);
     for (int i = 0; i < m->nu; ++i) d->ctrl[i] = torques[i];
@@ -187,19 +265,18 @@ void BipedRobot::walk() {
     step();
 }
 
-// 贝塞尔曲线辅助函数
 Eigen::Vector3d BipedRobot::getBezierPos(double s, const Eigen::Vector3d& p0, const Eigen::Vector3d& p3) {
-    // 简单的3阶贝塞尔，中间点抬高 Z
-    Eigen::Vector3d p1 = p0; p1(2) += 0.1; // 抬高 10cm
-    Eigen::Vector3d p2 = p3; p2(2) += 0.1;
+    // [修正] 再次降低高度，贴地飞行，减少垂直反作用力
+    Eigen::Vector3d p1 = p0; p1(2) += 0.02; // 起步微抬
+    Eigen::Vector3d p2 = p3; p2(2) += 0.05; // 落地前稍高
 
     double u = 1 - s;
     return u*u*u*p0 + 3*u*u*s*p1 + 3*u*s*s*p2 + s*s*s*p3;
 }
 
 Eigen::Vector3d BipedRobot::getBezierVel(double s, double T, const Eigen::Vector3d& p0, const Eigen::Vector3d& p3) {
-    Eigen::Vector3d p1 = p0; p1(2) += 0.1;
-    Eigen::Vector3d p2 = p3; p2(2) += 0.1;
+    Eigen::Vector3d p1 = p0; p1(2) += 0.02;
+    Eigen::Vector3d p2 = p3; p2(2) += 0.05;
 
     double u = 1 - s;
     // dP/ds
@@ -208,8 +285,8 @@ Eigen::Vector3d BipedRobot::getBezierVel(double s, double T, const Eigen::Vector
 }
 
 Eigen::Vector3d BipedRobot::getBezierAcc(double s, double T, const Eigen::Vector3d& p0, const Eigen::Vector3d& p3) {
-    Eigen::Vector3d p1 = p0; p1(2) += 0.1;
-    Eigen::Vector3d p2 = p3; p2(2) += 0.1;
+    Eigen::Vector3d p1 = p0; p1(2) += 0.02;
+    Eigen::Vector3d p2 = p3; p2(2) += 0.05;
 
     double u = 1 - s;
     // d2P/ds2
@@ -250,7 +327,7 @@ void BipedRobot::checkConstraints() {
     auto check = [&](int id, std::string n, double min_q, double max_q) {
         int q_adr = m->jnt_qposadr[id];
         int v_adr = m->jnt_dofadr[id];
-        double q = -d->qpos[q_adr]; // 模型定义反向
+        double q = -d->qpos[q_adr];
         double v = d->qvel[v_adr];
         if (q < min_q || q > max_q || std::abs(v) > VEL_LIMIT) {
             // warning_msg_ += "Limit " + n + "\n";

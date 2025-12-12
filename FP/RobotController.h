@@ -52,7 +52,7 @@ private:
     // 躯干保持刚性
     const double W_KP_TRUNK_Z = 300.0, W_KD_TRUNK_Z = 30.0;
     const double W_KP_TRUNK_PITCH = 300.0, W_KD_TRUNK_PITCH = 30.0;
-    // [调试修正] 躯干 X 增加一点比例增益，辅助推进，确保不为0
+    // [调试修正] 躯干 X 增加一点比例增益，辅助推进，确保不为0，默认为 20
     const double W_KP_TRUNK_X = 20.0, W_KD_TRUNK_X = 10.0;
     // 摆动脚追踪
     const double W_KP_SWING = 200.0, W_KD_SWING = 20.0;
