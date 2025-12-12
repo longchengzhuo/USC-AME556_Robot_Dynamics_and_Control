@@ -183,7 +183,7 @@ void BipedRobot::walk() {
         // [策略核心]
         // 利用后脚还在地上的机会，疯狂加速！
         // 只有双脚都在，才能产生巨大的向前推力而不翻车
-        cmd.trunk_x_vel_des = 0.6; // 目标速度设高
+        cmd.trunk_x_vel_des = 0.213; // 目标速度设高
 
         // 权重配置：X 轴权重拉满
         cmd.w_trunk_z = 200;
@@ -265,31 +265,59 @@ void BipedRobot::walk() {
     step();
 }
 
+// 在 BipedRobot.cpp 中找到这三个函数
+
+// 辅助函数：计算适应躯干速度的控制点
+void getBezierControlPoints(const Eigen::Vector3d& p0, const Eigen::Vector3d& p3, double T,
+                            Eigen::Vector3d& p1, Eigen::Vector3d& p2) {
+    // 1. 基础提升高度
+    double clearance_h = 0.10; // [加强] 火烈鸟结构需要更高的抬腿高度，防止脚尖蹭地
+
+    p1 = p0;
+    p2 = p3;
+    p1(2) += clearance_h;
+    p2(2) += clearance_h;
+
+    // 2. [关键修复] 初始速度前馈 (Velocity Feedforward)
+    // 贝塞尔起点速度 V_start = 3 * (p1 - p0) / T
+    // 我们希望 V_start.x ≈ 躯干速度 (0.6 m/s)
+    // 所以 (p1.x - p0.x) = V_trunk * T / 3
+    double estimated_trunk_vel = 0.6; // 或者从 d->qvel[0] 获取
+    double forward_offset = estimated_trunk_vel * T / 3.0;
+
+    p1(0) += forward_offset;
+
+    // 3. 终点减速缓冲
+    // 我们希望落地时速度不要太快，但也不能为0（否则会顿挫），保持轻微前向速度
+    p2(0) -= forward_offset * 0.5;
+}
+
+// 修改 getBezierPos
 Eigen::Vector3d BipedRobot::getBezierPos(double s, const Eigen::Vector3d& p0, const Eigen::Vector3d& p3) {
-    // [修正] 再次降低高度，贴地飞行，减少垂直反作用力
-    Eigen::Vector3d p1 = p0; p1(2) += 0.02; // 起步微抬
-    Eigen::Vector3d p2 = p3; p2(2) += 0.05; // 落地前稍高
+    // 假设 T_swing = 0.8，需要硬编码或者传入 T
+    double T = 0.8;
+    Eigen::Vector3d p1, p2;
+    getBezierControlPoints(p0, p3, T, p1, p2);
 
     double u = 1 - s;
     return u*u*u*p0 + 3*u*u*s*p1 + 3*u*s*s*p2 + s*s*s*p3;
 }
 
+// 同样修改 getBezierVel 和 getBezierAcc，使用相同的 p1, p2 计算逻辑
 Eigen::Vector3d BipedRobot::getBezierVel(double s, double T, const Eigen::Vector3d& p0, const Eigen::Vector3d& p3) {
-    Eigen::Vector3d p1 = p0; p1(2) += 0.02;
-    Eigen::Vector3d p2 = p3; p2(2) += 0.05;
+    Eigen::Vector3d p1, p2;
+    getBezierControlPoints(p0, p3, T, p1, p2); // 确保 p1, p2 一致
 
     double u = 1 - s;
-    // dP/ds
     Eigen::Vector3d dPds = 3*u*u*(p1-p0) + 6*u*s*(p2-p1) + 3*s*s*(p3-p2);
     return dPds / T;
 }
 
 Eigen::Vector3d BipedRobot::getBezierAcc(double s, double T, const Eigen::Vector3d& p0, const Eigen::Vector3d& p3) {
-    Eigen::Vector3d p1 = p0; p1(2) += 0.02;
-    Eigen::Vector3d p2 = p3; p2(2) += 0.05;
+    Eigen::Vector3d p1, p2;
+    getBezierControlPoints(p0, p3, T, p1, p2);
 
     double u = 1 - s;
-    // d2P/ds2
     Eigen::Vector3d d2Pds2 = 6*u*(p2 - 2*p1 + p0) + 6*s*(p3 - 2*p2 + p1);
     return d2Pds2 / (T*T);
 }

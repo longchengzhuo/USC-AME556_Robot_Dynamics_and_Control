@@ -55,7 +55,7 @@ private:
     // [调试修正] 躯干 X 增加一点比例增益，辅助推进，确保不为0，默认为 20
     const double W_KP_TRUNK_X = 20.0, W_KD_TRUNK_X = 10.0;
     // 摆动脚追踪
-    const double W_KP_SWING = 200.0, W_KD_SWING = 20.0;
+    const double W_KP_SWING = 400.0, W_KD_SWING = 15.0;
 
     // 物理参数
     const double MU_CTRL = 0.6;
