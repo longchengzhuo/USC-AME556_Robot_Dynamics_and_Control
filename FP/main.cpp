@@ -59,9 +59,8 @@ public:
         if (d_->time < 1.0) {
             robot_.stand(DESIRED_X, 0.48, DESIRED_PITCH, STAND_DURATION);
         }
-        // 1.0 秒后：以 0.5 m/s 速度行走
         else {
-            robot_.walk(0.5);
+            robot_.walk();
         }
     }
 
