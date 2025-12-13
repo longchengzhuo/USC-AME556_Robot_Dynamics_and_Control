@@ -69,7 +69,7 @@ public:
             robot_.stand(DESIRED_X, 0.48, DESIRED_PITCH, STAND_DURATION);
         } else {
             // 调用新的持续行走函数，目标速度 0.2 m/s
-            robot_.real_walk(0.20);
+            robot_.real_walk(0.26);
         }
     }
 

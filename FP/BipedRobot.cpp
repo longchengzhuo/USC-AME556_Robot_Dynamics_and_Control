@@ -25,10 +25,19 @@ BipedRobot::BipedRobot(mjModel* model, mjData* data) : m(model), d(data) {
     current_state_ = RobotState::IDLE;
     walk_start_time_ = 0.0;
 
+    // [DEBUG] 变量初始化
+    dbg_cmd_x_des_ = 0;
+    dbg_cmd_v_des_ = 0;
+    dbg_weight_x_ = 0;
+    dbg_swing_tgt_x_ = 0;
+
     // 初始化状态日志
     state_log_file_.open("../robot_state.csv");
     if (state_log_file_.is_open()) {
         state_log_file_ << "Time";
+        // [DEBUG] 增加核心调试数据列
+        state_log_file_ << ",FSM_State,Cmd_X_Des,Cmd_V_Des,Weight_X,Swing_Tgt_X";
+        // 原始数据
         state_log_file_ << ",q_x,q_z,q_pitch,q_lh,q_lk,q_rh,q_rk";
         state_log_file_ << ",v_x,v_z,v_pitch,v_lh,v_lk,v_rh,v_rk";
         state_log_file_ << ",lf_x,lf_y,lf_z,lf_vx,lf_vy,lf_vz";
@@ -37,22 +46,44 @@ BipedRobot::BipedRobot(mjModel* model, mjData* data) : m(model), d(data) {
     } else {
         std::cerr << "Failed to open robot_state.csv" << std::endl;
     }
+
+    // [New] 初始化双支撑日志
+    ds_log_file_.open("../double_support_log.txt"); // 改为 .txt 因为不再是标准 CSV
+    if (ds_log_file_.is_open()) {
+        // 可以在这里写一个简单的说明头，或者直接不写，因为每行都带标签了
+        ds_log_file_ << "--- Double Support Phase Log ---\n";
+    } else {
+        std::cerr << "Failed to open double_support_log.txt" << std::endl;
+    }
 }
 
 BipedRobot::~BipedRobot() {
     if (state_log_file_.is_open()) {
         state_log_file_.close();
     }
+    if (ds_log_file_.is_open()) {
+        ds_log_file_.close();
+    }
 }
 
+// [修改] 增强的日志记录
 void BipedRobot::logState() {
     if (!state_log_file_.is_open()) return;
 
     state_log_file_ << d->time;
 
+    // [DEBUG] 记录调试变量
+    state_log_file_ << "," << (int)current_state_;
+    state_log_file_ << "," << dbg_cmd_x_des_;
+    state_log_file_ << "," << dbg_cmd_v_des_;
+    state_log_file_ << "," << dbg_weight_x_;
+    state_log_file_ << "," << dbg_swing_tgt_x_;
+
+    // 记录关节位置
     for (int i = 0; i < m->nq; ++i) {
         state_log_file_ << "," << d->qpos[i];
     }
+    // 记录关节速度
     for (int i = 0; i < m->nv; ++i) {
         state_log_file_ << "," << d->qvel[i];
     }
@@ -77,6 +108,50 @@ void BipedRobot::logState() {
     log_foot(id_right_foot_site_);
 
     state_log_file_ << "\n";
+}
+
+// [New] 双支撑阶段专用日志记录 (自定义格式)
+void BipedRobot::logDoubleSupport(double cmd_x, double cmd_w) {
+    if (!ds_log_file_.is_open()) return;
+
+    // 辅助函数：如果绝对值很小，置为0
+    auto clean_val = [](double val) {
+        return (std::abs(val) < 0.001) ? 0.0 : val;
+    };
+
+    double trunk_x = d->qpos[0];
+    double trunk_vx = d->qvel[0];
+    double lx = d->site_xpos[3 * id_left_foot_site_];
+    double rx = d->site_xpos[3 * id_right_foot_site_];
+
+    double front_x = std::max(lx, rx);
+    double back_x = std::min(lx, rx);
+    double foot_dist = front_x - back_x;
+    double trunk_to_front = trunk_x - front_x;
+    double trunk_to_back = trunk_x - back_x;
+
+    // 清洗数据
+    double c_trunk_x = clean_val(trunk_x);
+    double c_trunk_vx = clean_val(trunk_vx);
+    double c_front_x = clean_val(front_x);
+    double c_back_x = clean_val(back_x);
+    double c_foot_dist = clean_val(foot_dist);
+    double c_trunk_to_front = clean_val(trunk_to_front);
+    double c_trunk_to_back = clean_val(trunk_to_back);
+    double c_cmd_x = clean_val(cmd_x);
+    double c_cmd_w = clean_val(cmd_w);
+
+    // 写入带标签的数据，使用逗号分隔
+    ds_log_file_ << "Time:" << d->time << ", "
+                 << "Trunk_X:" << c_trunk_x << ", "
+                 << "Trunk_Vel_X:" << c_trunk_vx << ", "
+                 << "Front_Foot_X:" << c_front_x << ", "
+                 << "Back_Foot_X:" << c_back_x << ", "
+                 << "Foot_Dist:" << c_foot_dist << ", "
+                 << "Trunk_To_Front:" << c_trunk_to_front << ", "
+                 << "Trunk_To_Back:" << c_trunk_to_back << ", "
+                 << "Cmd_Trunk_X_Des:" << c_cmd_x << ", "
+                 << "Cmd_Weight_X:" << c_cmd_w << "\n";
 }
 
 void BipedRobot::enforceTorqueLimits(std::vector<double>& torques) {
@@ -212,13 +287,13 @@ void BipedRobot::real_walk(double target_x_vel) {
     const double T_swing = 0.6;      // 摆动时间
 
     // 将 0.68 的双支撑时间拆分为 Land 和 Shift 两个阶段
-    const double T_land  = 1.0;     // 落地缓冲时间 (Vel -> 0)
-    const double T_shift = 0.51;     // 重心转移/加速时间 (Vel -> Target)
+    const double T_land  = 0.0;     // 落地缓冲时间 (Vel -> 0)
+    const double T_shift = 0.4;     // 重心转移/加速时间 (Vel -> Target)
     const double T_ds_total = T_land + T_shift; // 0.68
 
     // 目标高度与姿态
     const double Z_height = 0.48;
-    const double Pitch_des = 0.05;
+    const double Pitch_des = 0.0;
 
     // Raibert Heuristic Gains
     const double K_vel = 0.0; // 保持 0.0，严格按照 walk 的逻辑
@@ -262,20 +337,12 @@ void BipedRobot::real_walk(double target_x_vel) {
             cw_phase_start_time_ = t_now;
 
             // 准备抬左脚
-            swing_init_pos_ << d->site_xpos[3*id_left_foot_site_], d->site_xpos[3*id_left_foot_site_+1], d->site_xpos[3*id_left_foot_site_+2];
-            swing_target_pos_ = swing_init_pos_;
-            double v_current = d->qvel[0];
-            double step_dist = (target_x_vel * T_swing) + K_vel * (v_current - target_x_vel) + 0.25;
-            swing_target_pos_(0) += step_dist;
-            // double predicted_travel = v_current * T_swing;
-            // double raibert_offset = 0.0 * (v_current - target_x_vel); // K_vel = 0
-            //
-            // // 目标是绝对世界坐标 X
-            // // 必须基于 d->qpos[0] (当前躯干位置) 计算，而不是后脚位置
-            // swing_target_pos_(0) = d->qpos[0] + predicted_travel * 0.5 + 0.15 + raibert_offset;
-            //
-            // // 保持 Y 和 Z 不变 (或者 Z 落地为 0)
-            // swing_target_pos_(2) = 0.0;
+            // swing_init_pos_ << d->site_xpos[3*id_left_foot_site_], d->site_xpos[3*id_left_foot_site_+1], d->site_xpos[3*id_left_foot_site_+2];
+            // swing_target_pos_ = swing_init_pos_;
+            // double v_current = d->qvel[0];
+            // double step_dist = (target_x_vel * T_swing) + K_vel * (v_current - target_x_vel) + 0.25;
+            // swing_target_pos_(0) += step_dist;
+
             std::cout << "[RealWalk] Phase 2: LEFT SWING" << std::endl;
         }
     }
@@ -294,8 +361,24 @@ void BipedRobot::real_walk(double target_x_vel) {
         cmd.w_trunk_pitch = 500.0;
         cmd.w_swing_pos = 450.0;
 
-        double s = std::min(t_phase / T_swing, 1.0);
         double v_current = d->qvel[0];
+        double time_remaining = std::max(0.0, T_swing - t_phase);
+
+        // 预测落地时的 Hip 位置 = 当前位置 + v * 剩余时间
+        double hip_future_x = d->qpos[0] + v_current * time_remaining;
+
+        // Raibert Heuristic 计算相对于未来 Hip 的偏移
+        // Neutral point = v * T_swing / 2
+        double neutral_offset = v_current * T_swing * 0.5;
+        double feedback_offset = K_vel * (v_current - target_x_vel);
+        double base_step = 0.25; // 基础步长补偿 (保持之前的参数)
+
+        // 更新目标位置
+        swing_target_pos_(0) = hip_future_x + base_step ;
+        swing_target_pos_(2) = 0.0; // 确保 Z 目标为地面
+
+        // 计算贝塞尔曲线
+        double s = std::min(t_phase / T_swing, 1.0);
         cmd.swing_pos_des = getBezierPos(s, T_swing, v_current, swing_init_pos_, swing_target_pos_);
         cmd.swing_vel_des = getBezierVel(s, T_swing, v_current, swing_init_pos_, swing_target_pos_);
         cmd.swing_acc_des = getBezierAcc(s, T_swing, v_current, swing_init_pos_, swing_target_pos_);
@@ -342,20 +425,12 @@ void BipedRobot::real_walk(double target_x_vel) {
             cw_phase_start_time_ = t_now;
 
             // 准备抬右脚
-            swing_init_pos_ << d->site_xpos[3*id_right_foot_site_], d->site_xpos[3*id_right_foot_site_+1], d->site_xpos[3*id_right_foot_site_+2];
-            swing_target_pos_ = swing_init_pos_;
-            double v_current = d->qvel[0];
-            double step_dist = (target_x_vel * T_swing) + K_vel * (v_current - target_x_vel) + 0.3;
-            swing_target_pos_(0) += step_dist;
-            // double predicted_travel = v_current * T_swing;
-            // double raibert_offset = 0.0 * (v_current - target_x_vel); // K_vel = 0
-            //
-            // // 目标是绝对世界坐标 X
-            // // 必须基于 d->qpos[0] (当前躯干位置) 计算，而不是后脚位置
-            // swing_target_pos_(0) = d->qpos[0] + predicted_travel * 0.5 + 0.15 + raibert_offset;
-            //
-            // // 保持 Y 和 Z 不变 (或者 Z 落地为 0)
-            // swing_target_pos_(2) = 0.0;
+            // swing_init_pos_ << d->site_xpos[3*id_right_foot_site_], d->site_xpos[3*id_right_foot_site_+1], d->site_xpos[3*id_right_foot_site_+2];
+            // swing_target_pos_ = swing_init_pos_;
+            // double v_current = d->qvel[0];
+            // double step_dist = (target_x_vel * T_swing) + K_vel * (v_current - target_x_vel) + 0.25;
+            // swing_target_pos_(0) += step_dist;
+
             std::cout << "[RealWalk] Phase 5: RIGHT SWING" << std::endl;
         }
     }
@@ -373,8 +448,24 @@ void BipedRobot::real_walk(double target_x_vel) {
         cmd.w_trunk_pitch = 500.0;
         cmd.w_swing_pos = 450.0;
 
-        double s = std::min(t_phase / T_swing, 1.0);
         double v_current = d->qvel[0];
+        double time_remaining = std::max(0.0, T_swing - t_phase);
+
+        // 预测落地时的 Hip 位置 = 当前位置 + v * 剩余时间
+        double hip_future_x = d->qpos[0] + v_current * time_remaining;
+
+        // Raibert Heuristic 计算相对于未来 Hip 的偏移
+        // Neutral point = v * T_swing / 2
+        double neutral_offset = v_current * T_swing * 0.5;
+        double feedback_offset = K_vel * (v_current - target_x_vel);
+        double base_step = 0.25; // 基础步长补偿 (保持之前的参数)
+
+        // 更新目标位置
+        swing_target_pos_(0) = hip_future_x + base_step ;
+        swing_target_pos_(2) = 0.0; // 确保 Z 目标为地面
+
+        // 计算贝塞尔曲线
+        double s = std::min(t_phase / T_swing, 1.0);
         cmd.swing_pos_des = getBezierPos(s, T_swing, v_current, swing_init_pos_, swing_target_pos_);
         cmd.swing_vel_des = getBezierVel(s, T_swing, v_current, swing_init_pos_, swing_target_pos_);
         cmd.swing_acc_des = getBezierAcc(s, T_swing, v_current, swing_init_pos_, swing_target_pos_);
@@ -419,26 +510,34 @@ void BipedRobot::real_walk(double target_x_vel) {
             cw_phase_start_time_ = t_now;
 
             // 准备抬左脚 (Loop)
-            swing_init_pos_ << d->site_xpos[3*id_left_foot_site_], d->site_xpos[3*id_left_foot_site_+1], d->site_xpos[3*id_left_foot_site_+2];
-            swing_target_pos_ = swing_init_pos_;
-            double v_current = d->qvel[0];
-            double step_dist = (target_x_vel * T_swing) + K_vel * (v_current - target_x_vel) + 0.3;
-            swing_target_pos_(0) += step_dist;
-            // double predicted_travel = v_current * T_swing;
-            // double raibert_offset = 0.0 * (v_current - target_x_vel); // K_vel = 0
-            //
-            // // 目标是绝对世界坐标 X
-            // // 必须基于 d->qpos[0] (当前躯干位置) 计算，而不是后脚位置
-            // swing_target_pos_(0) = d->qpos[0] + predicted_travel * 0.5 + 0.15 + raibert_offset;
-            //
-            // // 保持 Y 和 Z 不变 (或者 Z 落地为 0)
-            // swing_target_pos_(2) = 0.0;
+            // swing_init_pos_ << d->site_xpos[3*id_left_foot_site_], d->site_xpos[3*id_left_foot_site_+1], d->site_xpos[3*id_left_foot_site_+2];
+            // swing_target_pos_ = swing_init_pos_;
+            // double v_current = d->qvel[0];
+            // double step_dist = (target_x_vel * T_swing) + K_vel * (v_current - target_x_vel) + 0.25;
+            // swing_target_pos_(0) += step_dist;
+
             std::cout << "[RealWalk] Loop -> Phase 2: LEFT SWING" << std::endl;
         }
     }
 
     // 保存 trunk_x_des 用于显示
     trunk_x_des_ = cmd.trunk_x_des;
+
+    // [DEBUG] 实时更新调试变量 (埋点)
+    dbg_cmd_x_des_ = cmd.trunk_x_des;
+    dbg_cmd_v_des_ = cmd.trunk_x_vel_des;
+    dbg_weight_x_ = cmd.w_trunk_x;
+    // 只有在摆动相才有意义，其他时候记录0
+    if (current_state_ == RobotState::REAL_WALK_LEFT_SWING || current_state_ == RobotState::REAL_WALK_RIGHT_SWING) {
+        dbg_swing_tgt_x_ = swing_target_pos_(0);
+    } else {
+        dbg_swing_tgt_x_ = 0.0;
+    }
+
+    // [New] 记录双支撑日志
+    if (isDoubleSupport()) {
+        logDoubleSupport(cmd.trunk_x_des, cmd.w_trunk_x);
+    }
 
     // 调用控制器
     std::vector<double> torques = controller_.computeWalkControl(m, d, cmd);
