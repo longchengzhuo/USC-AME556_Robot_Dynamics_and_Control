@@ -16,8 +16,8 @@ enum class RobotState {
     WALK_SWING,
     WALK_LAND,
 
-    // [Task 4] Continuous Walk (Cyclic)
-    REAL_WALK_INIT_DS,       // 初始双支撑加速
+    // [新增] Task 4: Continuous Walk (Cyclic)
+    REAL_WALK_INIT_DS,       // [New] 初始双支撑加速 (Weight Shift)
     REAL_WALK_LEFT_SWING,    // 左脚摆动
     REAL_WALK_DS_L2R,        // 双脚支撑 (Left -> Right)
     REAL_WALK_RIGHT_SWING,   // 右脚摆动
@@ -36,10 +36,10 @@ public:
     void stand(double target_x, double target_z, double target_pitch, double duration);
 
     // 迈步任务 (Task 3)
-    void walk(double target_x_vel = 0.2);
+    void one_step(double target_x_vel = 0.2);
 
-    // [Task 4] 持续行走任务
-    void real_walk(double target_x_vel = 0.2);
+    // [新增] 持续行走任务 (Task 4)
+    void forward_walk(double target_x_vel = 0.2);
 
     void resetToKeyframe();
     void resetToState(const std::vector<double>& qpos);
@@ -96,20 +96,9 @@ private:
     double cw_phase_start_time_; // 当前相位开始时间
     // double cw_trunk_x_ref_;   // [已移除] 不再使用虚拟参考点，改用 flexible tracking
 
-    // [DEBUG] 埋点数据缓存
-    double dbg_cmd_x_des_;
-    double dbg_cmd_v_des_;
-    double dbg_weight_x_;
-    double dbg_swing_tgt_x_;
-
     // 状态日志文件
     std::ofstream state_log_file_;
-    // [New] 双支撑专用日志文件
-    std::ofstream ds_log_file_;
-
     void logState();
-    // [New] 记录双支撑数据函数
-    void logDoubleSupport(double cmd_x, double cmd_w);
 
     // 辅助函数
     void checkConstraints();

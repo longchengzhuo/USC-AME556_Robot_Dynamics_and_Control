@@ -208,7 +208,7 @@ void BipedRobot::stand(double target_x, double target_z, double target_pitch, do
 }
 
 // 任务三：单步迈步 (Old Task)
-void BipedRobot::walk(double target_x_vel) {
+void BipedRobot::one_step(double target_x_vel) {
     double t_now = d->time;
     if (current_state_ != RobotState::WALK_WEIGHT_SHIFT &&
         current_state_ != RobotState::WALK_SWING &&
@@ -279,7 +279,7 @@ void BipedRobot::walk(double target_x_vel) {
 // 4. Swing Right (抬右脚)
 // 5. Land (双脚缓冲/停顿) + Shift (双脚加速) -> 在 DS_R2L 状态中实现
 // =====================================================================
-void BipedRobot::real_walk(double target_x_vel) {
+void BipedRobot::forward_walk(double target_x_vel) {
     double t_now = d->time;
 
     // --- 0. 参数配置 ---
