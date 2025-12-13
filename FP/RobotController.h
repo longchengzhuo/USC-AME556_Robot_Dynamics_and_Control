@@ -20,6 +20,7 @@ public:
     // 这是一个统一的 WBC 接口，通过 contact flags 和 task weights 区分不同阶段
     struct WalkCommand {
         // 期望躯干状态
+        double trunk_x_des;     // 躯干 X 位置 (用于位置锁定)
         double trunk_z_des;
         double trunk_pitch_des;
         double trunk_x_vel_des; // 躯干向前速度 (弱约束)
@@ -53,7 +54,7 @@ private:
     const double W_KP_TRUNK_Z = 300.0, W_KD_TRUNK_Z = 30.0;
     const double W_KP_TRUNK_PITCH = 300.0, W_KD_TRUNK_PITCH = 30.0;
     // [调试修正] 躯干 X 增加一点比例增益，辅助推进，确保不为0，默认为 20
-    const double W_KP_TRUNK_X = 20.0, W_KD_TRUNK_X = 10.0;
+    const double W_KP_TRUNK_X = 100.0, W_KD_TRUNK_X = 10.0;
     // 摆动脚追踪
     const double W_KP_SWING = 400.0, W_KD_SWING = 15.0;
 

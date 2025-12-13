@@ -51,6 +51,7 @@ private:
 
     // 迈步任务变量
     double walk_start_time_;
+    double land_x_pos_;             // 落地时锁定的 x 位置
     Eigen::Vector3d swing_init_pos_;
     Eigen::Vector3d swing_target_pos_;
 

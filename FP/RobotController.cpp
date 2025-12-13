@@ -156,19 +156,20 @@ std::vector<double> RobotController::computeWalkStepControl(const mjModel* m, co
     Eigen::VectorXd q_vel(nv);
     for(int i=0; i<nv; ++i) q_vel(i) = d->qvel[i];
 
+    double x_curr = d->qpos[0];
     double z_curr = d->qpos[1];
     double pitch_curr = d->qpos[2];
+    double x_vel = d->qvel[0];
     double z_vel = d->qvel[1];
     double pitch_vel = d->qvel[2];
-    double x_vel = d->qvel[0];
 
     // --- 2. 构造任务目标 b_task ---
     // Trunk Z
     double acc_z_des = W_KP_TRUNK_Z * (cmd.trunk_z_des - z_curr) - W_KD_TRUNK_Z * z_vel;
     // Trunk Pitch
     double acc_pitch_des = W_KP_TRUNK_PITCH * (cmd.trunk_pitch_des - pitch_curr) - W_KD_TRUNK_PITCH * pitch_vel;
-    // Trunk X (Velocity Tracking / Damping)
-    double acc_x_des = W_KP_TRUNK_X * (0.0) + W_KD_TRUNK_X * (cmd.trunk_x_vel_des - x_vel);
+    // Trunk X (Position + Velocity PD Control)
+    double acc_x_des = W_KP_TRUNK_X * (cmd.trunk_x_des - x_curr) + W_KD_TRUNK_X * (cmd.trunk_x_vel_des - x_vel);
 
     // Swing Foot (Left)
     // 获取当前 Left Foot Pos/Vel 用于反馈
