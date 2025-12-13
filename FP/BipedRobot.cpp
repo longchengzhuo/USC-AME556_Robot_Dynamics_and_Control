@@ -25,17 +25,13 @@ BipedRobot::BipedRobot(mjModel* model, mjData* data) : m(model), d(data) {
     current_state_ = RobotState::IDLE;
     walk_start_time_ = 0.0;
 
-    // [新增] 初始化状态日志
+    // 初始化状态日志
     state_log_file_.open("../robot_state.csv");
     if (state_log_file_.is_open()) {
         state_log_file_ << "Time";
-        // 7 DoF Pos (qpos)
         state_log_file_ << ",q_x,q_z,q_pitch,q_lh,q_lk,q_rh,q_rk";
-        // 7 DoF Vel (qvel)
         state_log_file_ << ",v_x,v_z,v_pitch,v_lh,v_lk,v_rh,v_rk";
-        // Left Foot (Pos + Vel)
         state_log_file_ << ",lf_x,lf_y,lf_z,lf_vx,lf_vy,lf_vz";
-        // Right Foot (Pos + Vel)
         state_log_file_ << ",rf_x,rf_y,rf_z,rf_vx,rf_vy,rf_vz";
         state_log_file_ << "\n";
     } else {
@@ -43,36 +39,28 @@ BipedRobot::BipedRobot(mjModel* model, mjData* data) : m(model), d(data) {
     }
 }
 
-// [新增] 析构函数
 BipedRobot::~BipedRobot() {
     if (state_log_file_.is_open()) {
         state_log_file_.close();
     }
 }
 
-// [新增] 埋点函数：记录详细状态
 void BipedRobot::logState() {
     if (!state_log_file_.is_open()) return;
 
     state_log_file_ << d->time;
 
-    // 1. 记录 7 DoF 关节位置
     for (int i = 0; i < m->nq; ++i) {
         state_log_file_ << "," << d->qpos[i];
     }
-    // 2. 记录 7 DoF 关节速度
     for (int i = 0; i < m->nv; ++i) {
         state_log_file_ << "," << d->qvel[i];
     }
 
-    // 3. 计算并记录脚部状态
     auto log_foot = [&](int site_id) {
-        // 位置直接从 site_xpos 获取
         double* pos = d->site_xpos + 3 * site_id;
         state_log_file_ << "," << pos[0] << "," << pos[1] << "," << pos[2];
 
-        // 速度需要通过雅可比矩阵计算: v = J * qvel
-        // 分配雅可比矩阵内存 (3 x nv)
         std::vector<mjtNum> J(3 * m->nv);
         mj_jacSite(m, d, J.data(), nullptr, site_id);
 
@@ -106,10 +94,7 @@ void BipedRobot::enforceTorqueLimits(std::vector<double>& torques) {
 void BipedRobot::step() {
     if (is_violated_) return;
     mj_step(m, d);
-
-    // [新增] 每次物理步进后记录状态
     logState();
-
     checkConstraints();
 }
 
@@ -124,7 +109,7 @@ void BipedRobot::freeFall() {
 void BipedRobot::stand(double target_x, double target_z, double target_pitch, double duration) {
     if (current_state_ != RobotState::STAND) {
         current_state_ = RobotState::STAND;
-        std::cout << "[FSM] Switch to STAND at t=" << d->time << std::endl;
+        // std::cout << "[FSM] Switch to STAND at t=" << d->time << std::endl;
     }
 
     bool left_grounded = false;
@@ -147,153 +132,337 @@ void BipedRobot::stand(double target_x, double target_z, double target_pitch, do
     step();
 }
 
-// [修改] 迈步任务实现：应用"蓄力爆发 + Raibert Heuristic"策略
+// 任务三：单步迈步 (Old Task)
 void BipedRobot::walk(double target_x_vel) {
     double t_now = d->time;
-
-    // 状态机初始化与切换逻辑
     if (current_state_ != RobotState::WALK_WEIGHT_SHIFT &&
         current_state_ != RobotState::WALK_SWING &&
         current_state_ != RobotState::WALK_LAND) {
-
         current_state_ = RobotState::WALK_WEIGHT_SHIFT;
         walk_start_time_ = t_now;
         std::cout << "[FSM] Start WALK task. Phase: WEIGHT SHIFT at t=" << t_now << std::endl;
     }
 
     RobotController::WalkCommand cmd;
-    // 默认保持参数
-    cmd.trunk_x_des = d->qpos[0];  // 默认跟随当前 X 位置 (位置误差=0)
-    cmd.trunk_z_des = d->qpos[1];  // 当前 Z 高度
-
-    // 阶段参数
-    // Phase 1 稍微缩短，Phase 2 保持平滑
+    cmd.trunk_x_des = d->qpos[0];
+    cmd.trunk_z_des = d->qpos[1];
     double T_shift = 0.4;
     double T_swing = 0.8;
-
     double t_task = t_now - walk_start_time_;
 
-    // FSM Logic
     if (current_state_ == RobotState::WALK_WEIGHT_SHIFT) {
-        // Phase 1: 蓄力爆发 (双脚支撑)
-        cmd.left_contact = true;
-        cmd.right_contact = true;
-
-        // [策略核心]
-        // 利用后脚还在地上的机会，疯狂加速！
-        // 只有双脚都在，才能产生巨大的向前推力而不翻车
-        cmd.trunk_x_vel_des = target_x_vel; // 使用入参目标速度
-
-        // 权重配置：X 轴权重拉满
-        cmd.w_trunk_z = 200;
-        cmd.w_trunk_pitch = 200;
-        cmd.w_trunk_x = 500.0; // 这里的优先级必须最高！
-        cmd.w_swing_pos = 0.0;
-
-        // 稍微前倾，辅助加速
+        cmd.left_contact = true; cmd.right_contact = true;
+        cmd.trunk_x_vel_des = target_x_vel;
+        cmd.w_trunk_z = 200; cmd.w_trunk_pitch = 200; cmd.w_trunk_x = 500.0; cmd.w_swing_pos = 0.0;
         cmd.trunk_pitch_des = 0.05;
 
         if (t_task > T_shift) {
             current_state_ = RobotState::WALK_SWING;
-            // 记录摆动初始点
-            swing_init_pos_ << d->site_xpos[3*id_left_foot_site_],
-                               d->site_xpos[3*id_left_foot_site_+1],
-                               d->site_xpos[3*id_left_foot_site_+2];
-
-            // [关键修正] 计算落脚点时必须包含身体的预估位移 (Raibert Heuristic)
-            // 目标位置 = 初始位置 + 身体位移 + 实际步长
-            // 身体预估位移 = 目标速度 * 摆动时间
+            swing_init_pos_ << d->site_xpos[3*id_left_foot_site_], d->site_xpos[3*id_left_foot_site_+1], d->site_xpos[3*id_left_foot_site_+2];
             swing_target_pos_ = swing_init_pos_;
-            double estimated_body_dist = cmd.trunk_x_vel_des * T_swing; // 0.6 * 0.8 = 0.48m
-            double step_length = 0.25; // 物理步长
+            double estimated_body_dist = cmd.trunk_x_vel_des * T_swing;
+            double step_length = 0.25;
             swing_target_pos_(0) += estimated_body_dist + step_length;
-
-            std::cout << "[FSM] Switch to SWING at t=" << t_now
-                      << ". Target Step (Relative): " << (estimated_body_dist + step_length)
-                      << " [Body Est: " << estimated_body_dist << " + Step: " << step_length << "]" << std::endl;
         }
 
     } else if (current_state_ == RobotState::WALK_SWING) {
-        // Phase 2: 惯性滑行 (单脚支撑)
-        cmd.left_contact = false;
-        cmd.right_contact = true;
-
+        cmd.left_contact = false; cmd.right_contact = true;
         double t_swing_curr = t_task - T_shift;
         double s = std::min(t_swing_curr / T_swing, 1.0);
-        double trunk_vel = d->qvel[0];  // 使用真实躯干速度
-
-        // 贝塞尔曲线规划 - 传入 T_swing 和真实躯干速度
+        double trunk_vel = d->qvel[0];
         cmd.swing_pos_des = getBezierPos(s, T_swing, trunk_vel, swing_init_pos_, swing_target_pos_);
         cmd.swing_vel_des = getBezierVel(s, T_swing, trunk_vel, swing_init_pos_, swing_target_pos_);
         cmd.swing_acc_des = getBezierAcc(s, T_swing, trunk_vel, swing_init_pos_, swing_target_pos_);
 
-        // 权重配置：此时姿态最重要
-        cmd.w_trunk_z = 300;
-        cmd.w_trunk_pitch = 500.0; // 锁死 Pitch，防止扑街
-        cmd.w_trunk_x = 10.0;      // [策略核心] 此时放弃 X 加速，允许自然滑行/减速
-        cmd.w_swing_pos = 200;     // 柔顺摆腿
-
-        // 目标速度稍微降低，允许减速
-        cmd.trunk_x_vel_des = 0.0;
-        cmd.trunk_pitch_des = 0.05; // 保持微前倾
+        cmd.w_trunk_z = 300; cmd.w_trunk_pitch = 500.0; cmd.w_trunk_x = 10.0; cmd.w_swing_pos = 200;
+        cmd.trunk_x_vel_des = 0.0; cmd.trunk_pitch_des = 0.05;
 
         if (s >= 1.0) {
             current_state_ = RobotState::WALK_LAND;
-            land_x_pos_ = d->qpos[0];  // 记录落地时的 X 位置
-            std::cout << "[FSM] Switch to LAND at t=" << t_now << ", lock X=" << land_x_pos_ << std::endl;
+            land_x_pos_ = d->qpos[0];
         }
 
     } else if (current_state_ == RobotState::WALK_LAND) {
-        // Phase 3: 落地刹车
+        cmd.left_contact = true; cmd.right_contact = true;
+        cmd.trunk_x_des = land_x_pos_;
+        cmd.trunk_x_vel_des = 0.0; cmd.trunk_pitch_des = 0.0;
+        cmd.w_trunk_z = 300; cmd.w_trunk_pitch = 300; cmd.w_trunk_x = 200.0; cmd.w_swing_pos = 0.0;
+    }
+
+    std::vector<double> torques = controller_.computeWalkStepControl(m, d, cmd);
+    enforceTorqueLimits(torques);
+    for (int i = 0; i < m->nu; ++i) d->ctrl[i] = torques[i];
+    step();
+}
+
+// =====================================================================
+// [Task 4] 持续行走 (real_walk)
+// 逻辑序列：
+// 1. Shift (双脚加速)
+// 2. Swing Left (抬左脚)
+// 3. Land (双脚缓冲/停顿) + Shift (双脚加速) -> 在 DS_L2R 状态中实现
+// 4. Swing Right (抬右脚)
+// 5. Land (双脚缓冲/停顿) + Shift (双脚加速) -> 在 DS_R2L 状态中实现
+// =====================================================================
+void BipedRobot::real_walk(double target_x_vel) {
+    double t_now = d->time;
+
+    // --- 0. 参数配置 ---
+    const double T_init_shift = 0.4; // 初始启动时间
+    const double T_swing = 0.6;      // 摆动时间
+
+    // 将 0.68 的双支撑时间拆分为 Land 和 Shift 两个阶段
+    const double T_land  = 1.0;     // 落地缓冲时间 (Vel -> 0)
+    const double T_shift = 0.51;     // 重心转移/加速时间 (Vel -> Target)
+    const double T_ds_total = T_land + T_shift; // 0.68
+
+    // 目标高度与姿态
+    const double Z_height = 0.48;
+    const double Pitch_des = 0.05;
+
+    // Raibert Heuristic Gains
+    const double K_vel = 0.0; // 保持 0.0，严格按照 walk 的逻辑
+
+    // --- 1. 初始化进入 Weight Shift 阶段 ---
+    if (current_state_ != RobotState::REAL_WALK_INIT_DS &&
+        current_state_ != RobotState::REAL_WALK_LEFT_SWING &&
+        current_state_ != RobotState::REAL_WALK_RIGHT_SWING &&
+        current_state_ != RobotState::REAL_WALK_DS_L2R &&
+        current_state_ != RobotState::REAL_WALK_DS_R2L) {
+
+        current_state_ = RobotState::REAL_WALK_INIT_DS;
+        cw_phase_start_time_ = t_now;
+        std::cout << "[RealWalk] Start! Phase 1: INIT_DS (Shift)" << std::endl;
+    }
+
+    double t_phase = t_now - cw_phase_start_time_;
+    RobotController::WalkCommand cmd;
+
+    // 默认高度和姿态
+    cmd.trunk_z_des = Z_height;
+    cmd.trunk_pitch_des = Pitch_des;
+
+    // -----------------------------------------------------
+    // 阶段 1: 初始加速 (Shift) - 对应序列 1
+    // -----------------------------------------------------
+    if (current_state_ == RobotState::REAL_WALK_INIT_DS) {
         cmd.left_contact = true;
         cmd.right_contact = true;
 
-        // 锁定位置 + 刹车
-        cmd.trunk_x_des = land_x_pos_;  // 使用锁定的 X 位置
-        cmd.trunk_x_vel_des = 0.0;
-        cmd.trunk_pitch_des = 0.0;
-
-        cmd.w_trunk_z = 300;
-        cmd.w_trunk_pitch = 300;
-        cmd.w_trunk_x = 200.0; // 位置锁定
+        // Shift 逻辑：高权重加速
+        cmd.trunk_x_des = d->qpos[0]; // 跟随当前位置
+        cmd.trunk_x_vel_des = target_x_vel;
+        cmd.w_trunk_x = 500.0;
+        cmd.w_trunk_z = 200.0;
+        cmd.w_trunk_pitch = 200.0;
         cmd.w_swing_pos = 0.0;
+
+        if (t_phase > T_init_shift) {
+            current_state_ = RobotState::REAL_WALK_LEFT_SWING;
+            cw_phase_start_time_ = t_now;
+
+            // 准备抬左脚
+            swing_init_pos_ << d->site_xpos[3*id_left_foot_site_], d->site_xpos[3*id_left_foot_site_+1], d->site_xpos[3*id_left_foot_site_+2];
+            swing_target_pos_ = swing_init_pos_;
+            double v_current = d->qvel[0];
+            double step_dist = (target_x_vel * T_swing) + K_vel * (v_current - target_x_vel) + 0.25;
+            swing_target_pos_(0) += step_dist;
+            // double predicted_travel = v_current * T_swing;
+            // double raibert_offset = 0.0 * (v_current - target_x_vel); // K_vel = 0
+            //
+            // // 目标是绝对世界坐标 X
+            // // 必须基于 d->qpos[0] (当前躯干位置) 计算，而不是后脚位置
+            // swing_target_pos_(0) = d->qpos[0] + predicted_travel * 0.5 + 0.15 + raibert_offset;
+            //
+            // // 保持 Y 和 Z 不变 (或者 Z 落地为 0)
+            // swing_target_pos_(2) = 0.0;
+            std::cout << "[RealWalk] Phase 2: LEFT SWING" << std::endl;
+        }
+    }
+    // -----------------------------------------------------
+    // 阶段 2: 抬左脚 (Swing Left) - 对应序列 2
+    // -----------------------------------------------------
+    else if (current_state_ == RobotState::REAL_WALK_LEFT_SWING) {
+        cmd.left_contact = false;
+        cmd.right_contact = true;
+
+        // 摆动相逻辑：弱化 X 轴约束，允许滑行
+        cmd.trunk_x_des = d->qpos[0];
+        cmd.trunk_x_vel_des = target_x_vel; // 期望保持速度
+        cmd.w_trunk_x = 50.0;
+        cmd.w_trunk_z = 300.0;
+        cmd.w_trunk_pitch = 500.0;
+        cmd.w_swing_pos = 450.0;
+
+        double s = std::min(t_phase / T_swing, 1.0);
+        double v_current = d->qvel[0];
+        cmd.swing_pos_des = getBezierPos(s, T_swing, v_current, swing_init_pos_, swing_target_pos_);
+        cmd.swing_vel_des = getBezierVel(s, T_swing, v_current, swing_init_pos_, swing_target_pos_);
+        cmd.swing_acc_des = getBezierAcc(s, T_swing, v_current, swing_init_pos_, swing_target_pos_);
+
+        if (s >= 1.0) {
+            current_state_ = RobotState::REAL_WALK_DS_L2R;
+            cw_phase_start_time_ = t_now;
+
+            // [修改] land_x_pos_ 设定为双脚中点
+            land_x_pos_ = (d->site_xpos[3*id_left_foot_site_] + d->site_xpos[3*id_right_foot_site_]) / 2.0;
+
+            std::cout << "[RealWalk] Phase 3: DS (Land -> Shift)" << std::endl;
+        }
+    }
+    // -----------------------------------------------------
+    // 阶段 3 & 4: 双脚支撑 (Land + Shift) - 对应序列 3, 4
+    // -----------------------------------------------------
+    else if (current_state_ == RobotState::REAL_WALK_DS_L2R) {
+        cmd.left_contact = true;
+        cmd.right_contact = true;
+        cmd.swing_pos_des.setZero(); cmd.swing_vel_des.setZero(); cmd.swing_acc_des.setZero();
+        cmd.w_swing_pos = 0.0;
+
+        if (t_phase < T_land) {
+            // === 序列 3: Land (落地缓冲) ===
+            // 参考 walk::WALK_LAND: 锁定位置，速度归零
+            cmd.trunk_x_des = land_x_pos_;
+            cmd.trunk_x_vel_des = 0.0;
+            cmd.w_trunk_x = 200.0; // 较低的权重，主要为了稳住
+            cmd.w_trunk_z = 300.0;
+            cmd.w_trunk_pitch = 300.0;
+        } else {
+            // === 序列 4: Shift (再次加速) ===
+            // 参考 walk::WALK_WEIGHT_SHIFT: 追逐速度
+            cmd.trunk_x_des = d->qpos[0];
+            cmd.trunk_x_vel_des = target_x_vel;
+            cmd.w_trunk_x = 500.0; // 高权重，爆发加速
+            cmd.w_trunk_z = 200.0;
+            cmd.w_trunk_pitch = 200.0;
+        }
+
+        if (t_phase > T_ds_total) {
+            current_state_ = RobotState::REAL_WALK_RIGHT_SWING;
+            cw_phase_start_time_ = t_now;
+
+            // 准备抬右脚
+            swing_init_pos_ << d->site_xpos[3*id_right_foot_site_], d->site_xpos[3*id_right_foot_site_+1], d->site_xpos[3*id_right_foot_site_+2];
+            swing_target_pos_ = swing_init_pos_;
+            double v_current = d->qvel[0];
+            double step_dist = (target_x_vel * T_swing) + K_vel * (v_current - target_x_vel) + 0.3;
+            swing_target_pos_(0) += step_dist;
+            // double predicted_travel = v_current * T_swing;
+            // double raibert_offset = 0.0 * (v_current - target_x_vel); // K_vel = 0
+            //
+            // // 目标是绝对世界坐标 X
+            // // 必须基于 d->qpos[0] (当前躯干位置) 计算，而不是后脚位置
+            // swing_target_pos_(0) = d->qpos[0] + predicted_travel * 0.5 + 0.15 + raibert_offset;
+            //
+            // // 保持 Y 和 Z 不变 (或者 Z 落地为 0)
+            // swing_target_pos_(2) = 0.0;
+            std::cout << "[RealWalk] Phase 5: RIGHT SWING" << std::endl;
+        }
+    }
+    // -----------------------------------------------------
+    // 阶段 5: 抬右脚 (Swing Right) - 对应序列 5
+    // -----------------------------------------------------
+    else if (current_state_ == RobotState::REAL_WALK_RIGHT_SWING) {
+        cmd.left_contact = true;
+        cmd.right_contact = false;
+
+        cmd.trunk_x_des = d->qpos[0];
+        cmd.trunk_x_vel_des = target_x_vel;
+        cmd.w_trunk_x = 50.0;
+        cmd.w_trunk_z = 300.0;
+        cmd.w_trunk_pitch = 500.0;
+        cmd.w_swing_pos = 450.0;
+
+        double s = std::min(t_phase / T_swing, 1.0);
+        double v_current = d->qvel[0];
+        cmd.swing_pos_des = getBezierPos(s, T_swing, v_current, swing_init_pos_, swing_target_pos_);
+        cmd.swing_vel_des = getBezierVel(s, T_swing, v_current, swing_init_pos_, swing_target_pos_);
+        cmd.swing_acc_des = getBezierAcc(s, T_swing, v_current, swing_init_pos_, swing_target_pos_);
+
+        if (s >= 1.0) {
+            current_state_ = RobotState::REAL_WALK_DS_R2L;
+            cw_phase_start_time_ = t_now;
+
+            // [修改] land_x_pos_ 设定为双脚中点
+            land_x_pos_ = (d->site_xpos[3*id_left_foot_site_] + d->site_xpos[3*id_right_foot_site_]) / 2.0;
+
+            std::cout << "[RealWalk] Phase 6: DS (Land -> Shift)" << std::endl;
+        }
+    }
+    // -----------------------------------------------------
+    // 阶段 6 & 4: 双脚支撑 (Land + Shift) - 对应序列 6, 4 (Loop)
+    // -----------------------------------------------------
+    else if (current_state_ == RobotState::REAL_WALK_DS_R2L) {
+        cmd.left_contact = true;
+        cmd.right_contact = true;
+        cmd.swing_pos_des.setZero(); cmd.swing_vel_des.setZero(); cmd.swing_acc_des.setZero();
+        cmd.w_swing_pos = 0.0;
+
+        if (t_phase < T_land) {
+            // === 序列 6: Land ===
+            cmd.trunk_x_des = land_x_pos_;
+            cmd.trunk_x_vel_des = 0.0;
+            cmd.w_trunk_x = 200.0;
+            cmd.w_trunk_z = 300.0;
+            cmd.w_trunk_pitch = 300.0;
+        } else {
+            // === 序列 4: Shift (Loop) ===
+            cmd.trunk_x_des = d->qpos[0];
+            cmd.trunk_x_vel_des = target_x_vel;
+            cmd.w_trunk_x = 500.0;
+            cmd.w_trunk_z = 200.0;
+            cmd.w_trunk_pitch = 200.0;
+        }
+
+        if (t_phase > T_ds_total) {
+            current_state_ = RobotState::REAL_WALK_LEFT_SWING;
+            cw_phase_start_time_ = t_now;
+
+            // 准备抬左脚 (Loop)
+            swing_init_pos_ << d->site_xpos[3*id_left_foot_site_], d->site_xpos[3*id_left_foot_site_+1], d->site_xpos[3*id_left_foot_site_+2];
+            swing_target_pos_ = swing_init_pos_;
+            double v_current = d->qvel[0];
+            double step_dist = (target_x_vel * T_swing) + K_vel * (v_current - target_x_vel) + 0.3;
+            swing_target_pos_(0) += step_dist;
+            // double predicted_travel = v_current * T_swing;
+            // double raibert_offset = 0.0 * (v_current - target_x_vel); // K_vel = 0
+            //
+            // // 目标是绝对世界坐标 X
+            // // 必须基于 d->qpos[0] (当前躯干位置) 计算，而不是后脚位置
+            // swing_target_pos_(0) = d->qpos[0] + predicted_travel * 0.5 + 0.15 + raibert_offset;
+            //
+            // // 保持 Y 和 Z 不变 (或者 Z 落地为 0)
+            // swing_target_pos_(2) = 0.0;
+            std::cout << "[RealWalk] Loop -> Phase 2: LEFT SWING" << std::endl;
+        }
     }
 
+    // 保存 trunk_x_des 用于显示
+    trunk_x_des_ = cmd.trunk_x_des;
+
     // 调用控制器
-    std::vector<double> torques = controller_.computeWalkStepControl(m, d, cmd);
+    std::vector<double> torques = controller_.computeWalkControl(m, d, cmd);
     enforceTorqueLimits(torques);
     for (int i = 0; i < m->nu; ++i) d->ctrl[i] = torques[i];
 
     step();
 }
 
-// 在 BipedRobot.cpp 中找到这三个函数
-
-// 辅助函数：计算适应躯干速度的控制点
-void getBezierControlPoints(const Eigen::Vector3d& p0, const Eigen::Vector3d& p3, double T,
+void BipedRobot::getBezierControlPoints(const Eigen::Vector3d& p0, const Eigen::Vector3d& p3, double T,
                             double trunk_vel, Eigen::Vector3d& p1, Eigen::Vector3d& p2) {
-    // 1. 基础提升高度
-    double clearance_h = 0.10; // [加强] 火烈鸟结构需要更高的抬腿高度，防止脚尖蹭地
+    double clearance_h = 0.10;
 
     p1 = p0;
     p2 = p3;
     p1(2) += clearance_h;
     p2(2) += clearance_h*0.35;
 
-    // 2. [关键修复] 初始速度前馈 (Velocity Feedforward)
-    // 贝塞尔起点速度 V_start = 3 * (p1 - p0) / T
-    // 我们希望 V_start.x ≈ 躯干速度
-    // 所以 (p1.x - p0.x) = V_trunk * T / 3
     double forward_offset = trunk_vel * T / 3.0;
 
     p1(0) += forward_offset;
-
-    // 3. 终点减速缓冲
-    // 我们希望落地时速度不要太快，但也不能为0（否则会顿挫），保持轻微前向速度
     p2(0) -= forward_offset * 0.5;
 }
 
-// 修改 getBezierPos - 增加 T 和 trunk_vel 参数
 Eigen::Vector3d BipedRobot::getBezierPos(double s, double T, double trunk_vel,
                                          const Eigen::Vector3d& p0, const Eigen::Vector3d& p3) {
     Eigen::Vector3d p1, p2;
@@ -303,11 +472,10 @@ Eigen::Vector3d BipedRobot::getBezierPos(double s, double T, double trunk_vel,
     return u*u*u*p0 + 3*u*u*s*p1 + 3*u*s*s*p2 + s*s*s*p3;
 }
 
-// 同样修改 getBezierVel 和 getBezierAcc，使用相同的 p1, p2 计算逻辑
 Eigen::Vector3d BipedRobot::getBezierVel(double s, double T, double trunk_vel,
                                          const Eigen::Vector3d& p0, const Eigen::Vector3d& p3) {
     Eigen::Vector3d p1, p2;
-    getBezierControlPoints(p0, p3, T, trunk_vel, p1, p2); // 确保 p1, p2 一致
+    getBezierControlPoints(p0, p3, T, trunk_vel, p1, p2);
 
     double u = 1 - s;
     Eigen::Vector3d dPds = 3*u*u*(p1-p0) + 6*u*s*(p2-p1) + 3*s*s*(p3-p2);
@@ -379,8 +547,4 @@ void BipedRobot::checkConstraints() {
             is_violated_ = true;
         }
     };
-    // check(id_hip_left, "L_Hip", HIP_ANGLE_MIN, HIP_ANGLE_MAX);
-    // check(id_knee_left, "L_Knee", KNEE_ANGLE_MIN, KNEE_ANGLE_MAX);
-    // check(id_hip_right, "R_Hip", HIP_ANGLE_MIN, HIP_ANGLE_MAX);
-    // check(id_knee_right, "R_Knee", KNEE_ANGLE_MIN, KNEE_ANGLE_MAX);
 }

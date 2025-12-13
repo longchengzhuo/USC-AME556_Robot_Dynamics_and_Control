@@ -63,6 +63,15 @@ public:
             robot_.walk(0.211);
         }
     }
+    void task_four() {
+        // 先稍微站稳一下 (0.5s)，确保姿态初始化正确
+        if (d_->time < 0.5) {
+            robot_.stand(DESIRED_X, 0.48, DESIRED_PITCH, STAND_DURATION);
+        } else {
+            // 调用新的持续行走函数，目标速度 0.2 m/s
+            robot_.real_walk(0.20);
+        }
+    }
 
 private:
     BipedRobot& robot_;
@@ -117,7 +126,8 @@ int main(int argc, const char** argv) {
             // 切换任务：这里注释掉 task_two，调用 task_three
             // task.task_one();
             // double target_z = task.task_two();
-            task.task_three();
+            // task.task_three();
+            task.task_four();
         }
 
         // 渲染与UI更新
@@ -130,6 +140,19 @@ int main(int argc, const char** argv) {
         char time_str[50];
         sprintf(time_str, "Time: %.2f s", d->time);
         mjr_overlay(mjFONT_BIG, mjGRID_TOPLEFT, viewport, time_str, NULL, &con);
+
+        // 显示trunk的x位置和速度
+        char trunk_info[100];
+        sprintf(trunk_info, "Trunk X: %.3f m\nTrunk Vx: %.3f m/s", d->qpos[0], d->qvel[0]);
+        mjr_overlay(mjFONT_NORMAL, mjGRID_BOTTOMLEFT, viewport, trunk_info, NULL, &con);
+
+        // 双脚支撑状态显示前脚x位置和trunk_x_des
+        if (robot.isDoubleSupport()) {
+            char foot_info[120];
+            sprintf(foot_info, "DS Front Foot X: %.3f m\nTrunk X Des: %.3f m",
+                    robot.getFrontFootX(), robot.getTrunkXDes());
+            mjr_overlay(mjFONT_NORMAL, mjGRID_BOTTOMRIGHT, viewport, foot_info, NULL, &con);
+        }
 
         std::string warning = robot.getWarningMessage();
         if (!warning.empty()) {
