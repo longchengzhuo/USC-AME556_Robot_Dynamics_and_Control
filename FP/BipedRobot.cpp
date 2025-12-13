@@ -147,8 +147,8 @@ void BipedRobot::stand(double target_x, double target_z, double target_pitch, do
     step();
 }
 
-// [修改] 迈步任务实现：应用“蓄力爆发 + Raibert Heuristic”策略
-void BipedRobot::walk() {
+// [修改] 迈步任务实现：应用"蓄力爆发 + Raibert Heuristic"策略
+void BipedRobot::walk(double target_x_vel) {
     double t_now = d->time;
 
     // 状态机初始化与切换逻辑
@@ -162,10 +162,10 @@ void BipedRobot::walk() {
     }
 
     RobotController::WalkCommand cmd;
-    // 默认保持参数
-    cmd.trunk_z_des = 0.48;
-    cmd.trunk_pitch_des = 0.0;
-    cmd.trunk_x_vel_des = 0.0;
+    // 默认保持参数 - 使用当前机器人高度
+    cmd.trunk_z_des = d->qpos[1];  // 当前 Z 高度
+    // cmd.trunk_pitch_des = 0.0;
+    // cmd.trunk_x_vel_des = 0.0;
 
     // 阶段参数
     // Phase 1 稍微缩短，Phase 2 保持平滑
@@ -183,7 +183,7 @@ void BipedRobot::walk() {
         // [策略核心]
         // 利用后脚还在地上的机会，疯狂加速！
         // 只有双脚都在，才能产生巨大的向前推力而不翻车
-        cmd.trunk_x_vel_des = 0.213; // 目标速度设高
+        cmd.trunk_x_vel_des = target_x_vel; // 使用入参目标速度
 
         // 权重配置：X 轴权重拉满
         cmd.w_trunk_z = 200;
@@ -221,11 +221,12 @@ void BipedRobot::walk() {
 
         double t_swing_curr = t_task - T_shift;
         double s = std::min(t_swing_curr / T_swing, 1.0);
+        double trunk_vel = d->qvel[0];  // 使用真实躯干速度
 
-        // 贝塞尔曲线规划
-        cmd.swing_pos_des = getBezierPos(s, swing_init_pos_, swing_target_pos_);
-        cmd.swing_vel_des = getBezierVel(s, T_swing, swing_init_pos_, swing_target_pos_);
-        cmd.swing_acc_des = getBezierAcc(s, T_swing, swing_init_pos_, swing_target_pos_);
+        // 贝塞尔曲线规划 - 传入 T_swing 和真实躯干速度
+        cmd.swing_pos_des = getBezierPos(s, T_swing, trunk_vel, swing_init_pos_, swing_target_pos_);
+        cmd.swing_vel_des = getBezierVel(s, T_swing, trunk_vel, swing_init_pos_, swing_target_pos_);
+        cmd.swing_acc_des = getBezierAcc(s, T_swing, trunk_vel, swing_init_pos_, swing_target_pos_);
 
         // 权重配置：此时姿态最重要
         cmd.w_trunk_z = 300;
@@ -234,7 +235,7 @@ void BipedRobot::walk() {
         cmd.w_swing_pos = 200;     // 柔顺摆腿
 
         // 目标速度稍微降低，允许减速
-        cmd.trunk_x_vel_des = 0.3;
+        cmd.trunk_x_vel_des = 0.0;
         cmd.trunk_pitch_des = 0.05; // 保持微前倾
 
         if (s >= 1.0) {
@@ -269,7 +270,7 @@ void BipedRobot::walk() {
 
 // 辅助函数：计算适应躯干速度的控制点
 void getBezierControlPoints(const Eigen::Vector3d& p0, const Eigen::Vector3d& p3, double T,
-                            Eigen::Vector3d& p1, Eigen::Vector3d& p2) {
+                            double trunk_vel, Eigen::Vector3d& p1, Eigen::Vector3d& p2) {
     // 1. 基础提升高度
     double clearance_h = 0.10; // [加强] 火烈鸟结构需要更高的抬腿高度，防止脚尖蹭地
 
@@ -280,10 +281,9 @@ void getBezierControlPoints(const Eigen::Vector3d& p0, const Eigen::Vector3d& p3
 
     // 2. [关键修复] 初始速度前馈 (Velocity Feedforward)
     // 贝塞尔起点速度 V_start = 3 * (p1 - p0) / T
-    // 我们希望 V_start.x ≈ 躯干速度 (0.6 m/s)
+    // 我们希望 V_start.x ≈ 躯干速度
     // 所以 (p1.x - p0.x) = V_trunk * T / 3
-    double estimated_trunk_vel = 0.6; // 或者从 d->qvel[0] 获取
-    double forward_offset = estimated_trunk_vel * T / 3.0;
+    double forward_offset = trunk_vel * T / 3.0;
 
     p1(0) += forward_offset;
 
@@ -292,30 +292,31 @@ void getBezierControlPoints(const Eigen::Vector3d& p0, const Eigen::Vector3d& p3
     p2(0) -= forward_offset * 0.5;
 }
 
-// 修改 getBezierPos
-Eigen::Vector3d BipedRobot::getBezierPos(double s, const Eigen::Vector3d& p0, const Eigen::Vector3d& p3) {
-    // 假设 T_swing = 0.8，需要硬编码或者传入 T
-    double T = 0.8;
+// 修改 getBezierPos - 增加 T 和 trunk_vel 参数
+Eigen::Vector3d BipedRobot::getBezierPos(double s, double T, double trunk_vel,
+                                         const Eigen::Vector3d& p0, const Eigen::Vector3d& p3) {
     Eigen::Vector3d p1, p2;
-    getBezierControlPoints(p0, p3, T, p1, p2);
+    getBezierControlPoints(p0, p3, T, trunk_vel, p1, p2);
 
     double u = 1 - s;
     return u*u*u*p0 + 3*u*u*s*p1 + 3*u*s*s*p2 + s*s*s*p3;
 }
 
 // 同样修改 getBezierVel 和 getBezierAcc，使用相同的 p1, p2 计算逻辑
-Eigen::Vector3d BipedRobot::getBezierVel(double s, double T, const Eigen::Vector3d& p0, const Eigen::Vector3d& p3) {
+Eigen::Vector3d BipedRobot::getBezierVel(double s, double T, double trunk_vel,
+                                         const Eigen::Vector3d& p0, const Eigen::Vector3d& p3) {
     Eigen::Vector3d p1, p2;
-    getBezierControlPoints(p0, p3, T, p1, p2); // 确保 p1, p2 一致
+    getBezierControlPoints(p0, p3, T, trunk_vel, p1, p2); // 确保 p1, p2 一致
 
     double u = 1 - s;
     Eigen::Vector3d dPds = 3*u*u*(p1-p0) + 6*u*s*(p2-p1) + 3*s*s*(p3-p2);
     return dPds / T;
 }
 
-Eigen::Vector3d BipedRobot::getBezierAcc(double s, double T, const Eigen::Vector3d& p0, const Eigen::Vector3d& p3) {
+Eigen::Vector3d BipedRobot::getBezierAcc(double s, double T, double trunk_vel,
+                                         const Eigen::Vector3d& p0, const Eigen::Vector3d& p3) {
     Eigen::Vector3d p1, p2;
-    getBezierControlPoints(p0, p3, T, p1, p2);
+    getBezierControlPoints(p0, p3, T, trunk_vel, p1, p2);
 
     double u = 1 - s;
     Eigen::Vector3d d2Pds2 = 6*u*(p2 - 2*p1 + p0) + 6*s*(p3 - 2*p2 + p1);
@@ -350,16 +351,31 @@ void BipedRobot::checkConstraints() {
     const double HIP_ANGLE_MAX = deg2rad(30);
     const double KNEE_ANGLE_MIN = deg2rad(0);
     const double KNEE_ANGLE_MAX = deg2rad(160);
-    const double VEL_LIMIT = 30.0;
+    constexpr double VEL_LIMIT = 30.0;
 
-    auto check = [&](int id, std::string n, double min_q, double max_q) {
+    auto check = [&](int id, const std::string& name, double min_q, double max_q) {
         int q_adr = m->jnt_qposadr[id];
         int v_adr = m->jnt_dofadr[id];
         double q = -d->qpos[q_adr];
         double v = d->qvel[v_adr];
-        if (q < min_q || q > max_q || std::abs(v) > VEL_LIMIT) {
-            // warning_msg_ += "Limit " + n + "\n";
-            // is_violated_ = true;
+        double q_deg = q * 180.0 / M_PI;
+        double min_deg = min_q * 180.0 / M_PI;
+        double max_deg = max_q * 180.0 / M_PI;
+
+        if (q < min_q) {
+            warning_msg_ += "[" + name + "] Angle below min: " +
+                           std::to_string(q_deg) + " deg < " + std::to_string(min_deg) + " deg\n";
+            is_violated_ = true;
+        }
+        if (q > max_q) {
+            warning_msg_ += "[" + name + "] Angle above max: " +
+                           std::to_string(q_deg) + " deg > " + std::to_string(max_deg) + " deg\n";
+            is_violated_ = true;
+        }
+        if (std::abs(v) > VEL_LIMIT) {
+            warning_msg_ += "[" + name + "] Velocity exceeded: " +
+                           std::to_string(v) + " rad/s > " + std::to_string(VEL_LIMIT) + " rad/s\n";
+            is_violated_ = true;
         }
     };
     check(id_hip_left, "L_Hip", HIP_ANGLE_MIN, HIP_ANGLE_MAX);

@@ -27,7 +27,7 @@ public:
     void stand(double target_x, double target_z, double target_pitch, double duration);
 
     // 迈步任务
-    void walk();
+    void walk(double target_x_vel = 0.2);
 
     void resetToKeyframe();
     void resetToState(const std::vector<double>& qpos);
@@ -64,7 +64,7 @@ private:
     double deg2rad(double deg) { return deg * M_PI / 180.0; }
 
     // 贝塞尔曲线规划
-    Eigen::Vector3d getBezierPos(double s, const Eigen::Vector3d& p0, const Eigen::Vector3d& p3);
-    Eigen::Vector3d getBezierVel(double s, double T, const Eigen::Vector3d& p0, const Eigen::Vector3d& p3);
-    Eigen::Vector3d getBezierAcc(double s, double T, const Eigen::Vector3d& p0, const Eigen::Vector3d& p3);
+    Eigen::Vector3d getBezierPos(double s, double T, double trunk_vel, const Eigen::Vector3d& p0, const Eigen::Vector3d& p3);
+    Eigen::Vector3d getBezierVel(double s, double T, double trunk_vel, const Eigen::Vector3d& p0, const Eigen::Vector3d& p3);
+    Eigen::Vector3d getBezierAcc(double s, double T, double trunk_vel, const Eigen::Vector3d& p0, const Eigen::Vector3d& p3);
 };

@@ -60,7 +60,7 @@ public:
             robot_.stand(DESIRED_X, 0.48, DESIRED_PITCH, STAND_DURATION);
         }
         else {
-            robot_.walk();
+            robot_.walk(0.211);
         }
     }
 
