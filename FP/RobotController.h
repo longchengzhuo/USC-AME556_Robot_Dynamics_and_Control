@@ -14,7 +14,7 @@ public:
     // 站立控制接口
     std::vector<double> computeStandControl(const mjModel* m, const mjData* d,
                                             double target_x, double target_z,
-                                            double target_pitch, double duration);
+                                            double target_pitch);
 
     // 任务三：单步迈步控制接口
     struct WalkCommand {

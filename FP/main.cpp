@@ -23,52 +23,17 @@ public:
         robot_.freeFall();
     }
 
-    // 任务二：动态下蹲起立轨迹
-    void task_two() {
-        const double warmup_time = 1.0;
-        double current_target_z;
-        double t_now = d_->time;
-
-        if (t_now < warmup_time) {
-            current_target_z = 0.45;
-        } else {
-            double t = t_now - warmup_time;
-
-            if (t <= 0.5) {
-                double ratio = t / 0.5;
-                current_target_z = 0.45 + ratio * (0.55 - 0.45);
-            } else if (t <= 1.5) {
-                double t_phase2 = t - 0.5;
-                double ratio = t_phase2 / 1.0;
-                current_target_z = 0.55 + ratio * (0.40 - 0.55);
-            } else {
-                current_target_z = 0.40;
-            }
-        }
-
-        // 使用类内部的参数
-        robot_.stand(DESIRED_X, current_target_z, DESIRED_PITCH, STAND_DURATION);
-    }
 
     // [新增] 任务三：先稳定站立，后行走
-    void task_three() {
-        // 前 1.0 秒：稳定在 0.48 米高度
-        // 使用与 task_two 类似的 stand 方法，但固定高度
-        if (d_->time < 1.0) {
-            robot_.stand(DESIRED_X, 0.48, DESIRED_PITCH, STAND_DURATION);
-        }
-        else {
-            robot_.one_step(0.211);
-        }
-    }
-    void task_four() {
+
+    void task_two() {
         const double warmup_time = 1.0;
         double current_target_z;
         double t_now = d_->time;
         double t = t_now - warmup_time;
 
         if (t_now < warmup_time) {
-            robot_.stand(DESIRED_X, 0.45, DESIRED_PITCH, STAND_DURATION);
+            robot_.stand(DESIRED_X, 0.45, DESIRED_PITCH);
         }
         else if (t <= 5.0) {
             if (t <= 0.5) {
@@ -82,40 +47,30 @@ public:
                 current_target_z = 0.40;
             }
             else {
-                current_target_z = 0.48;
+                current_target_z = DESIRED_Z;
             }
-            robot_.stand(DESIRED_X, current_target_z, DESIRED_PITCH, STAND_DURATION);
+            robot_.stand(DESIRED_X, current_target_z, DESIRED_PITCH);
         }
         else if (t <= 11.44){
             // 调用新的持续行走函数，目标速度 0.2 m/s
-            robot_.forward_walk(0.2072);
+            robot_.forward_walk(0.2072,DESIRED_Z, 0.05);
             DESIRED_X = d->qpos[0];
         }
         else if (t <= 13.0) {
             // 调用新的持续行走函数，目标速度 0.2 m/s
-            robot_.stand(DESIRED_X, 0.48, DESIRED_PITCH, STAND_DURATION);
+            robot_.stand(DESIRED_X, DESIRED_Z, DESIRED_PITCH);
         }
         else if (t <= 18.00){
             // 调用新的持续行走函数，目标速度 0.2 m/s
-            robot_.backward_walk2(0.196);
+            robot_.backward_walk2(0.196,DESIRED_Z,-0.01);
             DESIRED_X = d->qpos[0];
         }
         else{
             // 调用新的持续行走函数，目标速度 0.2 m/s
-            robot_.stand(DESIRED_X, 0.48, DESIRED_PITCH, STAND_DURATION);
+            robot_.stand(DESIRED_X, DESIRED_Z, DESIRED_PITCH);
         }
     }
 
-    // 任务五：后退行走
-    void task_five() {
-        // 先稍微站稳一下 (0.5s)，确保姿态初始化正确
-        if (d_->time < 0.5) {
-            robot_.stand(DESIRED_X, 0.48, DESIRED_PITCH, STAND_DURATION);
-        } else {
-            // 调用后退行走函数，目标速度 0.2 m/s
-            robot_.backward_walk(0.205);
-        }
-    }
 
 private:
     BipedRobot& robot_;
@@ -124,8 +79,8 @@ private:
 
     // [修改] 参数移入类内部
     double DESIRED_X = 0.0;
-    const double DESIRED_PITCH = 0.0;
-    const double STAND_DURATION = 1.0;
+    double DESIRED_Z = 0.48;
+    double DESIRED_PITCH = 0.0;
 };
 
 // === Main Function ===
@@ -167,12 +122,9 @@ int main(int argc, const char** argv) {
         while (d->time - simstart < 1.0/60.0) {
             if (!robot.getWarningMessage().empty()) break;
 
-            // 切换任务：这里注释掉 task_two，调用 task_three
             // task.task_one();
-            // double target_z = task.task_two();
-            // task.task_three();
-            task.task_four();
-            // task.task_five();  // 任务五：后退行走
+            task.task_two();
+
         }
 
         // 渲染与UI更新

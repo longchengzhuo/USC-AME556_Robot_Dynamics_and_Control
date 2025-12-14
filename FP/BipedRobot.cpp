@@ -106,7 +106,7 @@ void BipedRobot::freeFall() {
     step();
 }
 
-void BipedRobot::stand(double target_x, double target_z, double target_pitch, double duration) {
+void BipedRobot::stand(double target_x, double target_z, double target_pitch) {
     if (current_state_ != RobotState::STAND) {
         current_state_ = RobotState::STAND;
         // std::cout << "[FSM] Switch to STAND at t=" << d->time << std::endl;
@@ -123,7 +123,7 @@ void BipedRobot::stand(double target_x, double target_z, double target_pitch, do
     }
 
     if (left_grounded && right_grounded) {
-        std::vector<double> torques = controller_.computeStandControl(m, d, target_x, target_z, target_pitch, duration);
+        std::vector<double> torques = controller_.computeStandControl(m, d, target_x, target_z, target_pitch);
         enforceTorqueLimits(torques);
         for (int i = 0; i < m->nu; ++i) d->ctrl[i] = torques[i];
     } else {
@@ -132,68 +132,6 @@ void BipedRobot::stand(double target_x, double target_z, double target_pitch, do
     step();
 }
 
-// 任务三：单步迈步 (Old Task)
-void BipedRobot::one_step(double target_x_vel) {
-    double t_now = d->time;
-    if (current_state_ != RobotState::WALK_WEIGHT_SHIFT &&
-        current_state_ != RobotState::WALK_SWING &&
-        current_state_ != RobotState::WALK_LAND) {
-        current_state_ = RobotState::WALK_WEIGHT_SHIFT;
-        walk_start_time_ = t_now;
-        std::cout << "[FSM] Start WALK task. Phase: WEIGHT SHIFT at t=" << t_now << std::endl;
-    }
-
-    RobotController::WalkCommand cmd;
-    cmd.trunk_x_des = d->qpos[0];
-    cmd.trunk_z_des = d->qpos[1];
-    double T_shift = 0.4;
-    double T_swing = 0.8;
-    double t_task = t_now - walk_start_time_;
-
-    if (current_state_ == RobotState::WALK_WEIGHT_SHIFT) {
-        cmd.left_contact = true; cmd.right_contact = true;
-        cmd.trunk_x_vel_des = target_x_vel;
-        cmd.w_trunk_z = 200; cmd.w_trunk_pitch = 200; cmd.w_trunk_x = 500.0; cmd.w_swing_pos = 0.0;
-        cmd.trunk_pitch_des = 0.05;
-
-        if (t_task > T_shift) {
-            current_state_ = RobotState::WALK_SWING;
-            swing_init_pos_ << d->site_xpos[3*id_left_foot_site_], d->site_xpos[3*id_left_foot_site_+1], d->site_xpos[3*id_left_foot_site_+2];
-            swing_target_pos_ = swing_init_pos_;
-            double estimated_body_dist = cmd.trunk_x_vel_des * T_swing;
-            double step_length = 0.25;
-            swing_target_pos_(0) += estimated_body_dist + step_length;
-        }
-
-    } else if (current_state_ == RobotState::WALK_SWING) {
-        cmd.left_contact = false; cmd.right_contact = true;
-        double t_swing_curr = t_task - T_shift;
-        double s = std::min(t_swing_curr / T_swing, 1.0);
-        double trunk_vel = d->qvel[0];
-        cmd.swing_pos_des = getBezierPos(s, T_swing, trunk_vel, swing_init_pos_, swing_target_pos_);
-        cmd.swing_vel_des = getBezierVel(s, T_swing, trunk_vel, swing_init_pos_, swing_target_pos_);
-        cmd.swing_acc_des = getBezierAcc(s, T_swing, trunk_vel, swing_init_pos_, swing_target_pos_);
-
-        cmd.w_trunk_z = 300; cmd.w_trunk_pitch = 500.0; cmd.w_trunk_x = 10.0; cmd.w_swing_pos = 200;
-        cmd.trunk_x_vel_des = 0.0; cmd.trunk_pitch_des = 0.05;
-
-        if (s >= 1.0) {
-            current_state_ = RobotState::WALK_LAND;
-            land_x_pos_ = d->qpos[0];
-        }
-
-    } else if (current_state_ == RobotState::WALK_LAND) {
-        cmd.left_contact = true; cmd.right_contact = true;
-        cmd.trunk_x_des = land_x_pos_;
-        cmd.trunk_x_vel_des = 0.0; cmd.trunk_pitch_des = 0.0;
-        cmd.w_trunk_z = 300; cmd.w_trunk_pitch = 300; cmd.w_trunk_x = 200.0; cmd.w_swing_pos = 0.0;
-    }
-
-    std::vector<double> torques = controller_.computeWalkStepControl(m, d, cmd);
-    enforceTorqueLimits(torques);
-    for (int i = 0; i < m->nu; ++i) d->ctrl[i] = torques[i];
-    step();
-}
 
 // =====================================================================
 // [Task 4] 持续行走 (real_walk)
@@ -204,7 +142,7 @@ void BipedRobot::one_step(double target_x_vel) {
 // 4. Swing Right (抬右脚)
 // 5. Land (双脚缓冲/停顿) + Shift (双脚加速) -> 在 DS_R2L 状态中实现
 // =====================================================================
-void BipedRobot::forward_walk(double target_x_vel) {
+void BipedRobot::forward_walk(double target_x_vel, double target_z, double target_pitch) {
     double t_now = d->time;
 
     // --- 0. 参数配置 ---
@@ -216,9 +154,6 @@ void BipedRobot::forward_walk(double target_x_vel) {
     const double T_shift = 0.5061;     // 重心转移/加速时间 (Vel -> Target)
     const double T_ds_total = T_land + T_shift; // 0.68
 
-    // 目标高度与姿态
-    const double Z_height = 0.48;
-    const double Pitch_des = 0.05;
 
     // Raibert Heuristic Gains
     const double K_vel = 0.0; // 保持 0.0，严格按照 walk 的逻辑
@@ -239,8 +174,8 @@ void BipedRobot::forward_walk(double target_x_vel) {
     RobotController::WalkCommand cmd;
 
     // 默认高度和姿态
-    cmd.trunk_z_des = Z_height;
-    cmd.trunk_pitch_des = Pitch_des;
+    cmd.trunk_z_des = target_z;
+    cmd.trunk_pitch_des = target_pitch;
 
     // -----------------------------------------------------
     // 阶段 1: 初始加速 (Shift) - 对应序列 1
@@ -452,7 +387,7 @@ void BipedRobot::forward_walk(double target_x_vel) {
 // Task 5: Backward Walk (持续后退行走)
 // 逻辑与forward_walk相同，只是方向相反
 // =====================================================================
-void BipedRobot::backward_walk(double target_x_vel) {
+void BipedRobot::backward_walk(double target_x_vel, double target_z, double target_pitch) {
     double t_now = d->time;
 
     // --- 0. 参数配置 ---
@@ -464,9 +399,6 @@ void BipedRobot::backward_walk(double target_x_vel) {
     const double T_shift = 0.51;     // 重心转移/加速时间 (Vel -> Target)
     const double T_ds_total = T_land + T_shift;
 
-    // 目标高度与姿态 - 后退时微微后倾
-    const double Z_height = 0.48;
-    const double Pitch_des = -0.01;  // 负值表示后倾
 
     // Raibert Heuristic Gains
     const double K_vel = 0.0;
@@ -490,8 +422,8 @@ void BipedRobot::backward_walk(double target_x_vel) {
     RobotController::WalkCommand cmd;
 
     // 默认高度和姿态
-    cmd.trunk_z_des = Z_height;
-    cmd.trunk_pitch_des = Pitch_des;
+    cmd.trunk_z_des = target_z;
+    cmd.trunk_pitch_des = target_pitch;
 
     // -----------------------------------------------------
     // 阶段 1: 初始加速 (Shift) - 向后加速
@@ -674,7 +606,7 @@ void BipedRobot::backward_walk(double target_x_vel) {
 // Backward Walk 2 (先迈左脚版本)
 // 状态流程: INIT_DS → LEFT_SWING → DS_L2R → RIGHT_SWING → DS_R2L → (循环)
 // =====================================================================
-void BipedRobot::backward_walk2(double target_x_vel) {
+void BipedRobot::backward_walk2(double target_x_vel, double target_z, double target_pitch) {
     double t_now = d->time;
 
     // --- 0. 参数配置 (与 backward_walk 相同) ---
@@ -683,8 +615,6 @@ void BipedRobot::backward_walk2(double target_x_vel) {
     const double T_land  = 0.205;
     const double T_shift = 0.52;
     const double T_ds_total = T_land + T_shift;
-    const double Z_height = 0.48;
-    const double Pitch_des = -0.01;
     const double K_vel = 0.0;
     const double back_vel = -std::abs(target_x_vel);
 
@@ -702,8 +632,8 @@ void BipedRobot::backward_walk2(double target_x_vel) {
 
     double t_phase = t_now - cw_phase_start_time_;
     RobotController::WalkCommand cmd;
-    cmd.trunk_z_des = Z_height;
-    cmd.trunk_pitch_des = Pitch_des;
+    cmd.trunk_z_des = target_z;
+    cmd.trunk_pitch_des = target_pitch;
 
     // -----------------------------------------------------
     // 阶段 1: 初始加速 (Shift) - 向后加速

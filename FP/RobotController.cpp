@@ -27,7 +27,7 @@ RobotController::~RobotController() {
 // ==========================================
 std::vector<double> RobotController::computeStandControl(const mjModel* m, const mjData* d,
                                                          double target_x, double target_z,
-                                                         double target_pitch, double duration) {
+                                                         double target_pitch) {
     int nv = m->nv;
     int nu = m->nu;
     std::vector<double> torques(nu, 0.0);
