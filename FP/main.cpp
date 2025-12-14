@@ -138,8 +138,8 @@ int main(int argc, const char** argv) {
             // task.task_one();
             // double target_z = task.task_two();
             // task.task_three();
-            // task.task_four();
-            task.task_five();  // 任务五：后退行走
+            task.task_four();
+            // task.task_five();  // 任务五：后退行走
         }
 
         // 渲染与UI更新
