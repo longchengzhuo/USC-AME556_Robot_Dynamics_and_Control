@@ -86,18 +86,23 @@ public:
             }
             robot_.stand(DESIRED_X, current_target_z, DESIRED_PITCH, STAND_DURATION);
         }
-        else if (t <= 10.13) {
+        else if (t <= 11.44){
             // 调用新的持续行走函数，目标速度 0.2 m/s
-            robot_.forward_walk(0.2073);
+            robot_.forward_walk(0.2072);
             DESIRED_X = d->qpos[0];
         }
-        else if (t <= 12.0) {
+        else if (t <= 13.0) {
             // 调用新的持续行走函数，目标速度 0.2 m/s
             robot_.stand(DESIRED_X, 0.48, DESIRED_PITCH, STAND_DURATION);
         }
+        else if (t <= 18.00){
+            // 调用新的持续行走函数，目标速度 0.2 m/s
+            robot_.backward_walk2(0.196);
+            DESIRED_X = d->qpos[0];
+        }
         else{
             // 调用新的持续行走函数，目标速度 0.2 m/s
-            robot_.backward_walk(0.203);
+            robot_.stand(DESIRED_X, 0.48, DESIRED_PITCH, STAND_DURATION);
         }
     }
 

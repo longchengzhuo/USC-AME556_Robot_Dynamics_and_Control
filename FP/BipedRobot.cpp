@@ -212,8 +212,8 @@ void BipedRobot::forward_walk(double target_x_vel) {
     const double T_swing = 0.6;      // 摆动时间
 
     // 将 0.68 的双支撑时间拆分为 Land 和 Shift 两个阶段
-    const double T_land  = 0.2;     // 落地缓冲时间 (Vel -> 0)
-    const double T_shift = 0.51;     // 重心转移/加速时间 (Vel -> Target)
+    const double T_land  = 0.203;     // 落地缓冲时间 (Vel -> 0)
+    const double T_shift = 0.5061;     // 重心转移/加速时间 (Vel -> Target)
     const double T_ds_total = T_land + T_shift; // 0.68
 
     // 目标高度与姿态
@@ -456,7 +456,7 @@ void BipedRobot::backward_walk(double target_x_vel) {
     double t_now = d->time;
 
     // --- 0. 参数配置 ---
-    const double T_init_shift = 0.5; // 初始启动时间
+    const double T_init_shift = 0.2; // 初始启动时间
     const double T_swing = 0.53;      // 摆动时间
 
     // 将双支撑时间拆分为 Land 和 Shift 两个阶段
@@ -670,9 +670,201 @@ void BipedRobot::backward_walk(double target_x_vel) {
     step();
 }
 
+// =====================================================================
+// Backward Walk 2 (先迈左脚版本)
+// 状态流程: INIT_DS → LEFT_SWING → DS_L2R → RIGHT_SWING → DS_R2L → (循环)
+// =====================================================================
+void BipedRobot::backward_walk2(double target_x_vel) {
+    double t_now = d->time;
+
+    // --- 0. 参数配置 (与 backward_walk 相同) ---
+    const double T_init_shift = 0.4;
+    const double T_swing = 0.55;
+    const double T_land  = 0.205;
+    const double T_shift = 0.52;
+    const double T_ds_total = T_land + T_shift;
+    const double Z_height = 0.48;
+    const double Pitch_des = -0.01;
+    const double K_vel = 0.0;
+    const double back_vel = -std::abs(target_x_vel);
+
+    // --- 1. 初始化进入 Weight Shift 阶段 ---
+    if (current_state_ != RobotState::REAL_WALK_INIT_DS &&
+        current_state_ != RobotState::REAL_WALK_LEFT_SWING &&
+        current_state_ != RobotState::REAL_WALK_RIGHT_SWING &&
+        current_state_ != RobotState::REAL_WALK_DS_L2R &&
+        current_state_ != RobotState::REAL_WALK_DS_R2L) {
+
+        current_state_ = RobotState::REAL_WALK_INIT_DS;
+        cw_phase_start_time_ = t_now;
+        std::cout << "[BackWalk2] Start! Phase 1: INIT_DS (Shift)" << std::endl;
+    }
+
+    double t_phase = t_now - cw_phase_start_time_;
+    RobotController::WalkCommand cmd;
+    cmd.trunk_z_des = Z_height;
+    cmd.trunk_pitch_des = Pitch_des;
+
+    // -----------------------------------------------------
+    // 阶段 1: 初始加速 (Shift) - 向后加速
+    // -----------------------------------------------------
+    if (current_state_ == RobotState::REAL_WALK_INIT_DS) {
+        cmd.left_contact = true;
+        cmd.right_contact = true;
+        cmd.trunk_x_des = d->qpos[0];
+        cmd.trunk_x_vel_des = back_vel;
+        cmd.w_trunk_x = 500.0;
+        cmd.w_trunk_z = 200.0;
+        cmd.w_trunk_pitch = 200.0;
+        cmd.w_swing_pos = 0.0;
+
+        if (t_phase > T_init_shift) {
+            // 先抬左脚（区别于 backward_walk）
+            current_state_ = RobotState::REAL_WALK_LEFT_SWING;
+            cw_phase_start_time_ = t_now;
+
+            swing_init_pos_ << d->site_xpos[3*id_left_foot_site_], d->site_xpos[3*id_left_foot_site_+1], d->site_xpos[3*id_left_foot_site_+2];
+            swing_target_pos_ = swing_init_pos_;
+            double v_current = d->qvel[0];
+            double step_dist = (back_vel * T_swing) + K_vel * (v_current - back_vel) - 0.3;
+            swing_target_pos_(0) += step_dist;
+            std::cout << "[BackWalk2] Phase 2: LEFT SWING (first)" << std::endl;
+        }
+    }
+    // -----------------------------------------------------
+    // 阶段 2: 抬左脚 (Swing Left) - 先迈左脚
+    // -----------------------------------------------------
+    else if (current_state_ == RobotState::REAL_WALK_LEFT_SWING) {
+        cmd.left_contact = false;
+        cmd.right_contact = true;
+        cmd.trunk_x_des = d->qpos[0];
+        cmd.trunk_x_vel_des = back_vel;
+        cmd.w_trunk_x = 50.0;
+        cmd.w_trunk_z = 300.0;
+        cmd.w_trunk_pitch = 500.0;
+        cmd.w_swing_pos = 450.0;
+
+        double s = std::min(t_phase / T_swing, 1.0);
+        double v_current = d->qvel[0];
+        cmd.swing_pos_des = getBezierPos(s, T_swing, v_current, swing_init_pos_, swing_target_pos_);
+        cmd.swing_vel_des = getBezierVel(s, T_swing, v_current, swing_init_pos_, swing_target_pos_);
+        cmd.swing_acc_des = getBezierAcc(s, T_swing, v_current, swing_init_pos_, swing_target_pos_);
+
+        if (s >= 1.0) {
+            current_state_ = RobotState::REAL_WALK_DS_L2R;
+            cw_phase_start_time_ = t_now;
+            land_x_pos_ = (d->site_xpos[3*id_left_foot_site_] + d->site_xpos[3*id_right_foot_site_]) / 2.0;
+            std::cout << "[BackWalk2] Phase 3: DS_L2R (Land -> Shift)" << std::endl;
+        }
+    }
+    // -----------------------------------------------------
+    // 阶段 3: 双脚支撑 DS_L2R (Land + Shift)
+    // -----------------------------------------------------
+    else if (current_state_ == RobotState::REAL_WALK_DS_L2R) {
+        cmd.left_contact = true;
+        cmd.right_contact = true;
+        cmd.swing_pos_des.setZero(); cmd.swing_vel_des.setZero(); cmd.swing_acc_des.setZero();
+        cmd.w_swing_pos = 0.0;
+
+        if (t_phase < T_land) {
+            cmd.trunk_x_des = land_x_pos_;
+            cmd.trunk_x_vel_des = 0.0;
+            cmd.w_trunk_x = 200.0;
+            cmd.w_trunk_z = 300.0;
+            cmd.w_trunk_pitch = 300.0;
+        } else {
+            cmd.trunk_x_des = d->qpos[0];
+            cmd.trunk_x_vel_des = back_vel;
+            cmd.w_trunk_x = 500.0;
+            cmd.w_trunk_z = 200.0;
+            cmd.w_trunk_pitch = 200.0;
+        }
+
+        if (t_phase > T_ds_total) {
+            current_state_ = RobotState::REAL_WALK_RIGHT_SWING;
+            cw_phase_start_time_ = t_now;
+
+            swing_init_pos_ << d->site_xpos[3*id_right_foot_site_], d->site_xpos[3*id_right_foot_site_+1], d->site_xpos[3*id_right_foot_site_+2];
+            swing_target_pos_ = swing_init_pos_;
+            double v_current = d->qvel[0];
+            double step_dist = (back_vel * T_swing) + K_vel * (v_current - back_vel) - 0.34;
+            swing_target_pos_(0) += step_dist;
+            std::cout << "[BackWalk2] Phase 4: RIGHT SWING" << std::endl;
+        }
+    }
+    // -----------------------------------------------------
+    // 阶段 4: 抬右脚 (Swing Right)
+    // -----------------------------------------------------
+    else if (current_state_ == RobotState::REAL_WALK_RIGHT_SWING) {
+        cmd.left_contact = true;
+        cmd.right_contact = false;
+        cmd.trunk_x_des = d->qpos[0];
+        cmd.trunk_x_vel_des = back_vel;
+        cmd.w_trunk_x = 50.0;
+        cmd.w_trunk_z = 300.0;
+        cmd.w_trunk_pitch = 500.0;
+        cmd.w_swing_pos = 450.0;
+
+        double s = std::min(t_phase / T_swing, 1.0);
+        double v_current = d->qvel[0];
+        cmd.swing_pos_des = getBezierPos(s, T_swing, v_current, swing_init_pos_, swing_target_pos_);
+        cmd.swing_vel_des = getBezierVel(s, T_swing, v_current, swing_init_pos_, swing_target_pos_);
+        cmd.swing_acc_des = getBezierAcc(s, T_swing, v_current, swing_init_pos_, swing_target_pos_);
+
+        if (s >= 1.0) {
+            current_state_ = RobotState::REAL_WALK_DS_R2L;
+            cw_phase_start_time_ = t_now;
+            land_x_pos_ = (d->site_xpos[3*id_left_foot_site_] + d->site_xpos[3*id_right_foot_site_]) / 2.0;
+            std::cout << "[BackWalk2] Phase 5: DS_R2L (Land -> Shift)" << std::endl;
+        }
+    }
+    // -----------------------------------------------------
+    // 阶段 5: 双脚支撑 DS_R2L (Land + Shift) - Loop back to LEFT_SWING
+    // -----------------------------------------------------
+    else if (current_state_ == RobotState::REAL_WALK_DS_R2L) {
+        cmd.left_contact = true;
+        cmd.right_contact = true;
+        cmd.swing_pos_des.setZero(); cmd.swing_vel_des.setZero(); cmd.swing_acc_des.setZero();
+        cmd.w_swing_pos = 0.0;
+
+        if (t_phase < T_land) {
+            cmd.trunk_x_des = land_x_pos_;
+            cmd.trunk_x_vel_des = 0.0;
+            cmd.w_trunk_x = 200.0;
+            cmd.w_trunk_z = 300.0;
+            cmd.w_trunk_pitch = 300.0;
+        } else {
+            cmd.trunk_x_des = d->qpos[0];
+            cmd.trunk_x_vel_des = back_vel;
+            cmd.w_trunk_x = 500.0;
+            cmd.w_trunk_z = 200.0;
+            cmd.w_trunk_pitch = 200.0;
+        }
+
+        if (t_phase > T_ds_total) {
+            // 循环回到 LEFT_SWING（区别于 backward_walk 循环回 RIGHT_SWING）
+            current_state_ = RobotState::REAL_WALK_LEFT_SWING;
+            cw_phase_start_time_ = t_now;
+
+            swing_init_pos_ << d->site_xpos[3*id_left_foot_site_], d->site_xpos[3*id_left_foot_site_+1], d->site_xpos[3*id_left_foot_site_+2];
+            swing_target_pos_ = swing_init_pos_;
+            double v_current = d->qvel[0];
+            double step_dist = (back_vel * T_swing) + K_vel * (v_current - back_vel) - 0.34;
+            swing_target_pos_(0) += step_dist;
+            std::cout << "[BackWalk2] Loop -> Phase 2: LEFT SWING" << std::endl;
+        }
+    }
+
+    trunk_x_des_ = cmd.trunk_x_des;
+    std::vector<double> torques = controller_.computeWalkControl(m, d, cmd);
+    enforceTorqueLimits(torques);
+    for (int i = 0; i < m->nu; ++i) d->ctrl[i] = torques[i];
+    step();
+}
+
 void BipedRobot::getBezierControlPoints(const Eigen::Vector3d& p0, const Eigen::Vector3d& p3, double T,
                             double trunk_vel, Eigen::Vector3d& p1, Eigen::Vector3d& p2) {
-    double clearance_h = 0.10;
+    double clearance_h = 0.09;
 
     p1 = p0;
     p2 = p3;
@@ -769,8 +961,8 @@ void BipedRobot::checkConstraints() {
             is_violated_ = true;
         }
     };
-    // check(id_hip_left, "L_Hip", HIP_ANGLE_MIN, HIP_ANGLE_MAX);
-    // check(id_knee_left, "L_Knee", KNEE_ANGLE_MIN, KNEE_ANGLE_MAX);
-    // check(id_hip_right, "R_Hip", HIP_ANGLE_MIN, HIP_ANGLE_MAX);
-    // check(id_knee_right, "R_Knee", KNEE_ANGLE_MIN, KNEE_ANGLE_MAX);
+    check(id_hip_left, "L_Hip", HIP_ANGLE_MIN, HIP_ANGLE_MAX);
+    check(id_knee_left, "L_Knee", KNEE_ANGLE_MIN, KNEE_ANGLE_MAX);
+    check(id_hip_right, "R_Hip", HIP_ANGLE_MIN, HIP_ANGLE_MAX);
+    check(id_knee_right, "R_Knee", KNEE_ANGLE_MIN, KNEE_ANGLE_MAX);
 }
