@@ -24,7 +24,7 @@ public:
     }
 
     // 任务二：动态下蹲起立轨迹
-    double task_two() {
+    void task_two() {
         const double warmup_time = 1.0;
         double current_target_z;
         double t_now = d_->time;
@@ -48,8 +48,6 @@ public:
 
         // 使用类内部的参数
         robot_.stand(DESIRED_X, current_target_z, DESIRED_PITCH, STAND_DURATION);
-
-        return current_target_z;
     }
 
     // [新增] 任务三：先稳定站立，后行走
@@ -64,12 +62,33 @@ public:
         }
     }
     void task_four() {
-        // 先稍微站稳一下 (0.5s)，确保姿态初始化正确
-        if (d_->time < 0.5) {
-            robot_.stand(DESIRED_X, 0.48, DESIRED_PITCH, STAND_DURATION);
-        } else {
+        const double warmup_time = 1.0;
+        double current_target_z;
+        double t_now = d_->time;
+        double t = t_now - warmup_time;
+
+        if (t_now < warmup_time) {
+            robot_.stand(DESIRED_X, 0.45, DESIRED_PITCH, STAND_DURATION);
+        }
+        else if (t <= 5.0) {
+            if (t <= 0.5) {
+                double ratio = t / 0.5;
+                current_target_z = 0.45 + ratio * (0.55 - 0.45);
+            } else if (t <= 1.5) {
+                double t_phase2 = t - 0.5;
+                double ratio = t_phase2 / 1.0;
+                current_target_z = 0.55 + ratio * (0.40 - 0.55);
+            } else if (t <= 2.0) {
+                current_target_z = 0.40;
+            }
+            else {
+                current_target_z = 0.48;
+            }
+            robot_.stand(DESIRED_X, current_target_z, DESIRED_PITCH, STAND_DURATION);
+        }
+        else {
             // 调用新的持续行走函数，目标速度 0.2 m/s
-            robot_.forward_walk(0.20);
+            robot_.forward_walk(0.2075);
         }
     }
 
