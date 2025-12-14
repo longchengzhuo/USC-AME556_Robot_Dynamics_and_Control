@@ -456,12 +456,12 @@ void BipedRobot::backward_walk(double target_x_vel) {
     double t_now = d->time;
 
     // --- 0. 参数配置 ---
-    const double T_init_shift = 0.3; // 初始启动时间
+    const double T_init_shift = 0.5; // 初始启动时间
     const double T_swing = 0.53;      // 摆动时间
 
     // 将双支撑时间拆分为 Land 和 Shift 两个阶段
     const double T_land  = 0.2;     // 落地缓冲时间 (Vel -> 0)
-    const double T_shift = 0.53;     // 重心转移/加速时间 (Vel -> Target)
+    const double T_shift = 0.51;     // 重心转移/加速时间 (Vel -> Target)
     const double T_ds_total = T_land + T_shift;
 
     // 目标高度与姿态 - 后退时微微后倾

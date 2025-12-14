@@ -91,13 +91,13 @@ public:
             robot_.forward_walk(0.2073);
             DESIRED_X = d->qpos[0];
         }
-        else if (t <= 15.95) {
+        else if (t <= 12.0) {
             // 调用新的持续行走函数，目标速度 0.2 m/s
             robot_.stand(DESIRED_X, 0.48, DESIRED_PITCH, STAND_DURATION);
         }
         else{
             // 调用新的持续行走函数，目标速度 0.2 m/s
-            robot_.backward_walk(0.205);
+            robot_.backward_walk(0.203);
         }
     }
 
