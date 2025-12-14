@@ -41,6 +41,9 @@ public:
     // [新增] 持续行走任务 (Task 4)
     void forward_walk(double target_x_vel = 0.2);
 
+    // 后退行走任务 (Task 5)
+    void backward_walk(double target_x_vel = 0.2);
+
     void resetToKeyframe();
     void resetToState(const std::vector<double>& qpos);
 

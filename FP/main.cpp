@@ -73,6 +73,17 @@ public:
         }
     }
 
+    // 任务五：后退行走
+    void task_five() {
+        // 先稍微站稳一下 (0.5s)，确保姿态初始化正确
+        if (d_->time < 0.5) {
+            robot_.stand(DESIRED_X, 0.48, DESIRED_PITCH, STAND_DURATION);
+        } else {
+            // 调用后退行走函数，目标速度 0.2 m/s
+            robot_.backward_walk(0.205);
+        }
+    }
+
 private:
     BipedRobot& robot_;
     mjModel* m_;
@@ -127,7 +138,8 @@ int main(int argc, const char** argv) {
             // task.task_one();
             // double target_z = task.task_two();
             // task.task_three();
-            task.task_four();
+            // task.task_four();
+            task.task_five();  // 任务五：后退行走
         }
 
         // 渲染与UI更新
