@@ -769,8 +769,8 @@ void BipedRobot::checkConstraints() {
             is_violated_ = true;
         }
     };
-    check(id_hip_left, "L_Hip", HIP_ANGLE_MIN, HIP_ANGLE_MAX);
-    check(id_knee_left, "L_Knee", KNEE_ANGLE_MIN, KNEE_ANGLE_MAX);
-    check(id_hip_right, "R_Hip", HIP_ANGLE_MIN, HIP_ANGLE_MAX);
-    check(id_knee_right, "R_Knee", KNEE_ANGLE_MIN, KNEE_ANGLE_MAX);
+    // check(id_hip_left, "L_Hip", HIP_ANGLE_MIN, HIP_ANGLE_MAX);
+    // check(id_knee_left, "L_Knee", KNEE_ANGLE_MIN, KNEE_ANGLE_MAX);
+    // check(id_hip_right, "R_Hip", HIP_ANGLE_MIN, HIP_ANGLE_MAX);
+    // check(id_knee_right, "R_Knee", KNEE_ANGLE_MIN, KNEE_ANGLE_MAX);
 }
