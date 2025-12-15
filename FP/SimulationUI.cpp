@@ -174,7 +174,7 @@ void VideoRecorder::Stop() {
 
 void OverlayRenderer::render(const mjrRect& viewport, const mjrContext* con,
                               double time, double trunk_x, double trunk_z, double trunk_pitch,
-                              const std::string& status_message,
+                              double trunk_vx, const std::string& status_message,
                               const std::string& warning_message) {
     char buffer[256];
 
@@ -183,8 +183,8 @@ void OverlayRenderer::render(const mjrRect& viewport, const mjrContext* con,
     mjr_overlay(mjFONT_BIG, mjGRID_TOPLEFT, viewport, buffer, NULL, con);
 
     // Trunk state display: medium font, bottom-left position
-    sprintf(buffer, "X: %.3f m\nZ: %.3f m\nPitch: %.2f deg",
-            trunk_x, trunk_z, trunk_pitch * 180.0 / 3.14159265);
+    sprintf(buffer, "X: %.3f m\nZ: %.3f m\nPitch: %.2f deg\nVx: %.3f m/s",
+            trunk_x, trunk_z, trunk_pitch * 180.0 / 3.14159265, trunk_vx);
     mjr_overlay(mjFONT_NORMAL, mjGRID_BOTTOMLEFT, viewport, buffer, NULL, con);
 
     // Status message: large font, top-center (approximate with large offset from left)

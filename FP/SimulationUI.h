@@ -80,7 +80,7 @@ public:
      */
     static void render(const mjrRect& viewport, const mjrContext* con,
                        double time, double trunk_x, double trunk_z, double trunk_pitch,
-                       const std::string& status_message,
+                       double trunk_vx, const std::string& status_message,
                        const std::string& warning_message = "");
 };
 

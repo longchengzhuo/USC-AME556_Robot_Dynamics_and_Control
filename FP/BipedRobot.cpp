@@ -259,10 +259,10 @@ void BipedRobot::forwardWalk(double target_x_vel, double target_z, double target
 void BipedRobot::backwardWalkLeftFirst(double target_x_vel, double target_z, double target_pitch) {
     double t_now = d->time;
 
-    const double T_init_shift = 0.4;
-    const double T_swing = 0.55;
+    const double T_init_shift = 0.39;
+    const double T_swing = 0.541;
     const double T_land = 0.205;
-    const double T_shift = 0.52;
+    const double T_shift = 0.523;
     const double T_ds_total = T_land + T_shift;
     const double K_vel = 0.0;
     const double back_vel = -std::abs(target_x_vel);

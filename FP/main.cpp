@@ -85,8 +85,8 @@ public:
             robot_.stand(DESIRED_X, DESIRED_Z, DESIRED_PITCH);
             status_message = "Standing";
         }
-        else if (t <= 18.0) {
-            robot_.backwardWalkLeftFirst(0.196, DESIRED_Z, -0.01);
+        else if (t <= 18.53) {
+            robot_.backwardWalkLeftFirst(0.1969, DESIRED_Z, -0.01);
             DESIRED_X = d_->qpos[0];
             status_message = "Walking Backward";
         }
@@ -156,6 +156,7 @@ int main(int argc, const char** argv) {
             viewport, &con,
             d->time,
             d->qpos[0], d->qpos[1], d->qpos[2],
+            d->qvel[0],
             current_status,
             robot.getWarningMessage()
         );
