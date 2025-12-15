@@ -85,7 +85,7 @@ public:
             robot_.stand(DESIRED_X, DESIRED_Z, DESIRED_PITCH);
             status_message = "Standing";
         }
-        else if (t <= 18.53) {
+        else if (t <= 18.515) {
             robot_.backwardWalkLeftFirst(0.1969, DESIRED_Z, -0.01);
             DESIRED_X = d_->qpos[0];
             status_message = "Walking Backward";
