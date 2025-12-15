@@ -529,7 +529,7 @@ void BipedRobot::checkConstraints() {
         }
         if (std::abs(v) > vel_limit) {
             warning_msg_ += "[" + name + "] Velocity exceeded: " +
-                            std::to_string(v) + " rad/s > " + std::to_string(vel_limit) + " rad/s\n";
+                            std::to_string(std::abs(v)) + " rad/s > " + std::to_string(vel_limit) + " rad/s\n";
             is_violated_ = true;
         }
     };

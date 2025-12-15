@@ -27,8 +27,8 @@ public:
      */
     void task_one() {
         if (d_->time == 0.0) {
-            // std::vector<double> drop_state = {0.0, 0.8, 0.2, 0.5, -1.0, 0.3, -1.0};
-            std::vector<double> drop_state = {0,0.465,0,0.6472,-1.5708,0.523598776,-1.5708};
+            std::vector<double> drop_state = {0.0, 0.8, 0.2, 0.5, -1.0, 0.3, -1.0};
+            // std::vector<double> drop_state = {0,0.465,0,0.6472,-1.5708,0.523598776,-1.5708};
             robot_.resetToState(drop_state);
         }
         robot_.freeFall();
@@ -143,9 +143,9 @@ int main(int argc, const char** argv) {
         mjtNum simstart = d->time;
         while (d->time - simstart < 1.0 / 60.0) {
             if (!robot.getWarningMessage().empty()) break;
-            // task.task_one();
-            // current_status = "Free Fall Test";
-            current_status = task.task_two();
+            task.task_one();
+            current_status = "Free Fall Test";
+            // current_status = task.task_two();
             logger.log(d);
         }
 
