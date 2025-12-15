@@ -1,22 +1,40 @@
+/**
+ * @file RobotController.h
+ * @brief QP-based whole-body controller for biped robot locomotion.
+ *
+ * This controller implements optimization-based control for standing and walking
+ * using quadratic programming (QP) with contact constraints, friction cones,
+ * and torque limits.
+ */
+
 #pragma once
 #include "mujoco/mujoco.h"
 #include <vector>
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
 #include "OsqpEigen/OsqpEigen.h"
-#include <fstream>
 
 class RobotController {
 public:
-    RobotController();
-    ~RobotController();
+    RobotController() = default;
+    ~RobotController() = default;
 
-    // 站立控制接口
+    /**
+     * @brief Compute joint torques for static standing control.
+     * @param m MuJoCo model pointer.
+     * @param d MuJoCo data pointer.
+     * @param target_x Desired trunk X position.
+     * @param target_z Desired trunk Z position (height).
+     * @param target_pitch Desired trunk pitch angle.
+     * @return Vector of 4 joint torques [left_hip, left_knee, right_hip, right_knee].
+     */
     std::vector<double> computeStandControl(const mjModel* m, const mjData* d,
                                             double target_x, double target_z,
                                             double target_pitch);
 
-    // 任务三：单步迈步控制接口
+    /**
+     * @brief Walking command structure containing desired trajectory and contact state.
+     */
     struct WalkCommand {
         double trunk_x_des;
         double trunk_z_des;
@@ -36,44 +54,28 @@ public:
         double w_swing_pos;
     };
 
-    std::vector<double> computeWalkStepControl(const mjModel* m, const mjData* d, const WalkCommand& cmd);
-
-    // [新增] 任务四：持续行走控制接口 (复用 WalkCommand 结构体)
-    // 逻辑与 computeWalkStepControl 相似，但可能参数微调
+    /**
+     * @brief Compute joint torques for continuous walking control.
+     * @param m MuJoCo model pointer.
+     * @param d MuJoCo data pointer.
+     * @param cmd Walking command with desired trajectory and contact state.
+     * @return Vector of 4 joint torques.
+     */
     std::vector<double> computeWalkControl(const mjModel* m, const mjData* d, const WalkCommand& cmd);
 
 private:
-    // PD Gains for Stand
-    const double KP_X = 100.0, KD_X = 20.0;
-    const double KP_Z = 200.0, KD_Z = 20.0;
-    const double KP_PITCH = 200.0, KD_PITCH = 20.0;
+    static constexpr double KP_X = 100.0, KD_X = 20.0;
+    static constexpr double KP_Z = 200.0, KD_Z = 20.0;
+    static constexpr double KP_PITCH = 200.0, KD_PITCH = 20.0;
 
-    // PD Gains for Walk Task 3
-    const double W_KP_TRUNK_Z = 300.0, W_KD_TRUNK_Z = 30.0;
-    const double W_KP_TRUNK_PITCH = 300.0, W_KD_TRUNK_PITCH = 30.0;
-    const double W_KP_TRUNK_X = 100.0, W_KD_TRUNK_X = 10.0;
-    const double W_KP_SWING = 400.0, W_KD_SWING = 15.0;
+    static constexpr double CW_KP_TRUNK_X = 100.0, CW_KD_TRUNK_X = 15.0;
+    static constexpr double CW_KP_TRUNK_Z = 300.0, CW_KD_TRUNK_Z = 30.0;
+    static constexpr double CW_KP_TRUNK_PITCH = 300.0, CW_KD_TRUNK_PITCH = 30.0;
+    static constexpr double CW_KP_SWING = 450.0, CW_KD_SWING = 20.0;
 
-    // [新增] PD Gains for Continuous Walk Task 4
-    // 持续行走时，我们需要稍微柔顺一点的 X 轴跟踪，或者更强的速度阻尼
-    const double CW_KP_TRUNK_X = 100.0;
-    const double CW_KD_TRUNK_X = 15.0;
-    // 高度保持要硬
-    const double CW_KP_TRUNK_Z = 300.0;
-    const double CW_KD_TRUNK_Z = 30.0;
-    // 姿态保持要非常硬
-    const double CW_KP_TRUNK_PITCH = 300.0;
-    const double CW_KD_TRUNK_PITCH = 30.0;
-    // 摆动脚追踪
-    const double CW_KP_SWING = 450.0;
-    const double CW_KD_SWING = 20.0;
+    static constexpr double MU_CTRL = 0.6;
+    static constexpr double FZ_MIN = 0.0;
+    static constexpr double FZ_MAX = 500.0;
 
-    // 物理参数
-    const double MU_CTRL = 0.6;
-    const double FZ_MIN = 0.0;
-    const double FZ_MAX = 500.0;
-
-    std::ofstream log_file_;
-
-    void check_and_fix_nan(std::vector<double>& torques);
+    void checkAndFixNan(std::vector<double>& torques);
 };
