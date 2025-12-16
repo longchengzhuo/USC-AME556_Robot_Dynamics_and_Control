@@ -119,8 +119,8 @@ The simulation enforces the following physical constraints as specified in the p
 
 $$
 \tau_i = \begin{cases}
-\tau_{max} & \text{if } \tau_i \geq \tau_{max} \\
--\tau_{max} & \text{if } \tau_i \leq -\tau_{max} \\
+\tau_{max} & \text{if } \tau_i \geq \tau_{max} \\\\
+-\tau_{max} & \text{if } \tau_i \leq -\tau_{max} \\\\
 \tau_i & \text{otherwise}
 \end{cases}
 $$
@@ -337,7 +337,7 @@ The complete demonstration follows this timeline:
 The 2D bipedal robot has 7 degrees of freedom:
 
 $$
-\mathbf{q} = \begin{bmatrix} x \\ z \\ \theta \\ q_1 \\ q_2 \\ q_3 \\ q_4 \end{bmatrix} = \begin{bmatrix} \text{trunk } x \\ \text{trunk } z \\ \text{trunk pitch} \\ \text{left hip} \\ \text{left knee} \\ \text{right hip} \\ \text{right knee} \end{bmatrix} \in \mathbb{R}^7
+\mathbf{q} = \left[\begin{array}{c} x \\\\ z \\\\ \theta \\\\ q_1 \\\\ q_2 \\\\ q_3 \\\\ q_4 \end{array}\right] = \left[\begin{array}{c} \text{trunk } x \\\\ \text{trunk } z \\\\ \text{trunk pitch} \\\\ \text{left hip} \\\\ \text{left knee} \\\\ \text{right hip} \\\\ \text{right knee} \end{array}\right] \in \mathbb{R}^7
 $$
 
 The equations of motion follow the standard manipulator form:
@@ -361,7 +361,7 @@ For static double-support standing, the controller computes desired trunk accele
 #### Step 1: Compute Desired Base Acceleration
 
 $$
-\ddot{\mathbf{q}}_{base}^{des} = \begin{bmatrix} \ddot{x}^{des} \\ \ddot{z}^{des} \\ \ddot{\theta}^{des} \end{bmatrix} = \begin{bmatrix} K_p^x(x_d - x) - K_d^x \dot{x} \\ K_p^z(z_d - z) - K_d^z \dot{z} \\ K_p^\theta(\theta_d - \theta) - K_d^\theta \dot{\theta} \end{bmatrix}
+\ddot{\mathbf{q}}_{base}^{des} = \left[\begin{array}{c} \ddot{x}^{des} \\\\ \ddot{z}^{des} \\\\ \ddot{\theta}^{des} \end{array}\right] = \left[\begin{array}{c} K_p^x(x_d - x) - K_d^x \dot{x} \\\\ K_p^z(z_d - z) - K_d^z \dot{z} \\\\ K_p^\theta(\theta_d - \theta) - K_d^\theta \dot{\theta} \end{array}\right]
 $$
 
 **Gains:** $K_p^x = 100$, $K_d^x = 20$, $K_p^z = 200$, $K_d^z = 20$, $K_p^\theta = 200$, $K_d^\theta = 20$
@@ -377,7 +377,7 @@ $$
 The task Jacobian stacks the X and Z components of both feet:
 
 $$
-\mathbf{J}_{task} = \begin{bmatrix} J_{L,x} \\ J_{L,z} \\ J_{R,x} \\ J_{R,z} \end{bmatrix} \in \mathbb{R}^{4 \times 7}
+\mathbf{J}_{task} = \left[\begin{array}{c} J_{L,x} \\\\ J_{L,z} \\\\ J_{R,x} \\\\ J_{R,z} \end{array}\right] \in \mathbb{R}^{4 \times 7}
 $$
 
 Partitioning into base and joint components:
@@ -386,7 +386,9 @@ $$
 \mathbf{J}_{task} = \begin{bmatrix} \mathbf{J}_{base} & \mathbf{J}_{joint} \end{bmatrix}
 $$
 
-where $\mathbf{J}_{\text{base}} \in \mathbb{R}^{4 \times 3}$ and $\mathbf{J}_{\text{joint}} \in \mathbb{R}^{4 \times 4}$.
+where:
+
+$$\mathbf{J}_{\text{base}} \in \mathbb{R}^{4 \times 3}, \quad \mathbf{J}_{\text{joint}} \in \mathbb{R}^{4 \times 4}$$
 
 The desired joint acceleration is:
 
@@ -399,7 +401,7 @@ $$
 The total desired acceleration:
 
 $$
-\ddot{\mathbf{q}}^{des} = \begin{bmatrix} \ddot{\mathbf{q}}_{base}^{des} \\ \ddot{\mathbf{q}}_{joint}^{des} \end{bmatrix}
+\ddot{\mathbf{q}}^{des} = \left[\begin{array}{c} \ddot{\mathbf{q}}_{base}^{des} \\\\ \ddot{\mathbf{q}}_{joint}^{des} \end{array}\right]
 $$
 
 Compute inverse dynamics target:
@@ -413,7 +415,7 @@ $$
 **Decision Variables:**
 
 $$
-\mathbf{x} = \begin{bmatrix} \vec{\tau} \\ \vec{\lambda} \end{bmatrix} = \begin{bmatrix} \tau_1 \\ \tau_2 \\ \tau_3 \\ \tau_4 \\ f_{L,x} \\ f_{L,z} \\ f_{R,x} \\ f_{R,z} \end{bmatrix} \in \mathbb{R}^{8}
+\mathbf{x} = \left[\begin{array}{c} \vec{\tau} \\\\ \vec{\lambda} \end{array}\right] = \left[\begin{array}{c} \tau_1 \\\\ \tau_2 \\\\ \tau_3 \\\\ \tau_4 \\\\ f_{L,x} \\\\ f_{L,z} \\\\ f_{R,x} \\\\ f_{R,z} \end{array}\right] \in \mathbb{R}^{8}
 $$
 
 **Cost Function:**
@@ -423,7 +425,7 @@ $$
 $$
 
 $$
-\mathbf{P} = \begin{bmatrix} \mathbf{I}_4 & \mathbf{0} \\ \mathbf{0} & 0.1 \cdot \mathbf{I}_4 \end{bmatrix} \in \mathbb{R}^{8 \times 8}
+\mathbf{P} = \left[\begin{array}{cc} \mathbf{I}_4 & \mathbf{0} \\\\ \mathbf{0} & 0.1 \cdot \mathbf{I}_4 \end{array}\right] \in \mathbb{R}^{8 \times 8}
 $$
 
 **Equality Constraints (Dynamics):**
@@ -435,16 +437,16 @@ $$
 Expanded form:
 
 $$
-\underbrace{\begin{bmatrix}
-0 & 0 & 0 & 0 & J_{L,x}^{(1)} & J_{L,z}^{(1)} & J_{R,x}^{(1)} & J_{R,z}^{(1)} \\
-0 & 0 & 0 & 0 & J_{L,x}^{(2)} & J_{L,z}^{(2)} & J_{R,x}^{(2)} & J_{R,z}^{(2)} \\
-0 & 0 & 0 & 0 & J_{L,x}^{(3)} & J_{L,z}^{(3)} & J_{R,x}^{(3)} & J_{R,z}^{(3)} \\
-1 & 0 & 0 & 0 & J_{L,x}^{(4)} & J_{L,z}^{(4)} & J_{R,x}^{(4)} & J_{R,z}^{(4)} \\
-0 & 1 & 0 & 0 & J_{L,x}^{(5)} & J_{L,z}^{(5)} & J_{R,x}^{(5)} & J_{R,z}^{(5)} \\
-0 & 0 & 1 & 0 & J_{L,x}^{(6)} & J_{L,z}^{(6)} & J_{R,x}^{(6)} & J_{R,z}^{(6)} \\
+\underbrace{\left[\begin{array}{cccccccc}
+0 & 0 & 0 & 0 & J_{L,x}^{(1)} & J_{L,z}^{(1)} & J_{R,x}^{(1)} & J_{R,z}^{(1)} \\\\
+0 & 0 & 0 & 0 & J_{L,x}^{(2)} & J_{L,z}^{(2)} & J_{R,x}^{(2)} & J_{R,z}^{(2)} \\\\
+0 & 0 & 0 & 0 & J_{L,x}^{(3)} & J_{L,z}^{(3)} & J_{R,x}^{(3)} & J_{R,z}^{(3)} \\\\
+1 & 0 & 0 & 0 & J_{L,x}^{(4)} & J_{L,z}^{(4)} & J_{R,x}^{(4)} & J_{R,z}^{(4)} \\\\
+0 & 1 & 0 & 0 & J_{L,x}^{(5)} & J_{L,z}^{(5)} & J_{R,x}^{(5)} & J_{R,z}^{(5)} \\\\
+0 & 0 & 1 & 0 & J_{L,x}^{(6)} & J_{L,z}^{(6)} & J_{R,x}^{(6)} & J_{R,z}^{(6)} \\\\
 0 & 0 & 0 & 1 & J_{L,x}^{(7)} & J_{L,z}^{(7)} & J_{R,x}^{(7)} & J_{R,z}^{(7)}
-\end{bmatrix}}_{\mathbf{A}_{eq} \in \mathbb{R}^{7 \times 8}}
-\begin{bmatrix} \tau_1 \\ \tau_2 \\ \tau_3 \\ \tau_4 \\ f_{L,x} \\ f_{L,z} \\ f_{R,x} \\ f_{R,z} \end{bmatrix} = \vec{\tau}_{ID}
+\end{array}\right]}_{\mathbf{A}_{eq} \in \mathbb{R}^{7 \times 8}}
+\left[\begin{array}{c} \tau_1 \\\\ \tau_2 \\\\ \tau_3 \\\\ \tau_4 \\\\ f_{L,x} \\\\ f_{L,z} \\\\ f_{R,x} \\\\ f_{R,z} \end{array}\right] = \vec{\tau}_{ID}
 $$
 
 where $J_{L,x}^{(i)}$ denotes the $i$-th row element of the left foot X-direction Jacobian.
@@ -488,13 +490,13 @@ The walking controller handles dynamic locomotion with contact switching, formul
 #### Decision Variables
 
 $$
-\mathbf{x} = \begin{bmatrix} \ddot{\mathbf{q}} \\ \vec{\tau} \\ \vec{\lambda} \end{bmatrix} \in \mathbb{R}^{15}
+\mathbf{x} = \left[\begin{array}{c} \ddot{\mathbf{q}} \\\\ \vec{\tau} \\\\ \vec{\lambda} \end{array}\right] \in \mathbb{R}^{15}
 $$
 
 Explicitly:
 
 $$
-\mathbf{x} = \begin{bmatrix} \ddot{x} \\ \ddot{z} \\ \ddot{\theta} \\ \ddot{q}_1 \\ \ddot{q}_2 \\ \ddot{q}_3 \\ \ddot{q}_4 \\ \tau_1 \\ \tau_2 \\ \tau_3 \\ \tau_4 \\ f_{L,x} \\ f_{L,z} \\ f_{R,x} \\ f_{R,z} \end{bmatrix}
+\mathbf{x} = \left[\begin{array}{c} \ddot{x} \\\\ \ddot{z} \\\\ \ddot{\theta} \\\\ \ddot{q}_1 \\\\ \ddot{q}_2 \\\\ \ddot{q}_3 \\\\ \ddot{q}_4 \\\\ \tau_1 \\\\ \tau_2 \\\\ \tau_3 \\\\ \tau_4 \\\\ f_{L,x} \\\\ f_{L,z} \\\\ f_{R,x} \\\\ f_{R,z} \end{array}\right]
 $$
 
 #### Cost Function (Task-Space Tracking)
@@ -517,7 +519,7 @@ $$
 The quadratic cost matrix structure:
 
 $$
-\mathbf{P} = \sum_k w_k \mathbf{J}_k^T \mathbf{J}_k + \begin{bmatrix} \epsilon_q \mathbf{I}_7 & \mathbf{0} & \mathbf{0} \\ \mathbf{0} & \epsilon_\tau \mathbf{I}_4 & \mathbf{0} \\ \mathbf{0} & \mathbf{0} & \epsilon_\lambda \mathbf{I}_4 \end{bmatrix}
+\mathbf{P} = \sum_k w_k \mathbf{J}_k^T \mathbf{J}_k + \left[\begin{array}{ccc} \epsilon_q \mathbf{I}_7 & \mathbf{0} & \mathbf{0} \\\\ \mathbf{0} & \epsilon_\tau \mathbf{I}_4 & \mathbf{0} \\\\ \mathbf{0} & \mathbf{0} & \epsilon_\lambda \mathbf{I}_4 \end{array}\right]
 $$
 
 with $\epsilon_q = 0.01$, $\epsilon_\tau = 10^{-4}$, $\epsilon_\lambda = 10^{-4}$.
@@ -533,18 +535,18 @@ $$
 In matrix form (rows for each DOF):
 
 $$
-\underbrace{\begin{bmatrix}
-M_{11} & \cdots & M_{17} & 0 & 0 & 0 & 0 & -J_{L,x}^{(1)} & -J_{L,z}^{(1)} & -J_{R,x}^{(1)} & -J_{R,z}^{(1)} \\
-\vdots & \ddots & \vdots & \vdots & \vdots & \vdots & \vdots & \vdots & \vdots & \vdots & \vdots \\
+\underbrace{\left[\begin{array}{ccccccccccc}
+M_{11} & \cdots & M_{17} & 0 & 0 & 0 & 0 & -J_{L,x}^{(1)} & -J_{L,z}^{(1)} & -J_{R,x}^{(1)} & -J_{R,z}^{(1)} \\\\
+\vdots & \ddots & \vdots & \vdots & \vdots & \vdots & \vdots & \vdots & \vdots & \vdots & \vdots \\\\
 M_{71} & \cdots & M_{77} & 0 & 0 & 0 & -1 & -J_{L,x}^{(7)} & -J_{L,z}^{(7)} & -J_{R,x}^{(7)} & -J_{R,z}^{(7)}
-\end{bmatrix}}_{\mathbf{A}_{dyn} \in \mathbb{R}^{7 \times 15}}
+\end{array}\right]}_{\mathbf{A}_{dyn} \in \mathbb{R}^{7 \times 15}}
 \mathbf{x} = -\mathbf{h}
 $$
 
 The selection matrix structure embeds as:
 
 $$
-\mathbf{S}^T = \begin{bmatrix} \mathbf{0}_{3 \times 4} \\ \mathbf{I}_4 \end{bmatrix}
+\mathbf{S}^T = \left[\begin{array}{c} \mathbf{0}_{3 \times 4} \\\\ \mathbf{I}_4 \end{array}\right]
 $$
 
 **2. Contact Constraints (for stance foot):**
@@ -568,7 +570,7 @@ $$
 **Friction Cone (for stance feet only):**
 
 $$
-\begin{bmatrix} 1 & -\mu \\ -1 & -\mu \end{bmatrix} \begin{bmatrix} f_x \\ f_z \end{bmatrix} \leq \mathbf{0}
+\left[\begin{array}{cc} 1 & -\mu \\\\ -1 & -\mu \end{array}\right] \left[\begin{array}{c} f_x \\\\ f_z \end{array}\right] \leq \mathbf{0}
 $$
 
 **Normal Force Bounds:**
@@ -588,40 +590,40 @@ $$
 The full constraint matrix $\mathbf{A} \in \mathbb{R}^{n_c \times 15}$ (where $n_c$ varies with contact state):
 
 $$
-\mathbf{A} = \begin{bmatrix}
-\mathbf{A}_{dyn} \\
-\mathbf{A}_{contact} \\
-\mathbf{A}_{force} \\
-\mathbf{A}_{friction} \\
+\mathbf{A} = \left[\begin{array}{c}
+\mathbf{A}_{dyn} \\\\
+\mathbf{A}_{contact} \\\\
+\mathbf{A}_{force} \\\\
+\mathbf{A}_{friction} \\\\
 \mathbf{A}_{torque}
-\end{bmatrix}
+\end{array}\right]
 $$
 
 For **double support** (both feet in contact):
 
 $$
-\mathbf{A}_{contact} = \begin{bmatrix}
-J_{L,x}^{(1)} & \cdots & J_{L,x}^{(7)} & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 \\
-J_{L,z}^{(1)} & \cdots & J_{L,z}^{(7)} & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 \\
-J_{R,x}^{(1)} & \cdots & J_{R,x}^{(7)} & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 \\
+\mathbf{A}_{contact} = \left[\begin{array}{ccccccccccc}
+J_{L,x}^{(1)} & \cdots & J_{L,x}^{(7)} & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 \\\\
+J_{L,z}^{(1)} & \cdots & J_{L,z}^{(7)} & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 \\\\
+J_{R,x}^{(1)} & \cdots & J_{R,x}^{(7)} & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 \\\\
 J_{R,z}^{(1)} & \cdots & J_{R,z}^{(7)} & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0
-\end{bmatrix}
+\end{array}\right]
 $$
 
 For **single support** (e.g., left swing, right stance):
 
 $$
-\mathbf{A}_{contact} = \begin{bmatrix}
-J_{R,x}^{(1)} & \cdots & J_{R,x}^{(7)} & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 \\
+\mathbf{A}_{contact} = \left[\begin{array}{ccccccccccc}
+J_{R,x}^{(1)} & \cdots & J_{R,x}^{(7)} & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 \\\\
 J_{R,z}^{(1)} & \cdots & J_{R,z}^{(7)} & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0
-\end{bmatrix}
+\end{array}\right]
 $$
 
 $$
-\mathbf{A}_{force}^{swing} = \begin{bmatrix}
-0 & \cdots & 0 & 0 & 0 & 0 & 0 & 1 & 0 & 0 & 0 \\
+\mathbf{A}_{force}^{swing} = \left[\begin{array}{ccccccccccc}
+0 & \cdots & 0 & 0 & 0 & 0 & 0 & 1 & 0 & 0 & 0 \\\\
 0 & \cdots & 0 & 0 & 0 & 0 & 0 & 0 & 1 & 0 & 0
-\end{bmatrix}
+\end{array}\right]
 $$
 
 #### Bezier Foot Trajectory
@@ -634,12 +636,13 @@ $$
 
 where $s = t/T_{swing} \in [0,1]$ and:
 
-| Control Point | Definition |
-|---------------|------------|
-| $\mathbf{P}_0$ | Initial foot position |
-| $\mathbf{P}_1$ | $\mathbf{P}_0 + [v_{\text{trunk}} \cdot T/3, \, 0, \, h_{\text{clearance}}]^T$ |
-| $\mathbf{P}_2$ | $\mathbf{P}_3 + [-v_{\text{trunk}} \cdot T/6, \, 0, \, 0.1 \cdot h_{\text{clearance}}]^T$ |
-| $\mathbf{P}_3$ | Target landing position |
+$$\mathbf{P}_0 = \text{Initial foot position}$$
+
+$$\mathbf{P}_1 = \mathbf{P}_0 + \left[\begin{array}{c} v_{\text{trunk}} \cdot T/3 \\\\ 0 \\\\ h_{\text{clearance}} \end{array}\right]$$
+
+$$\mathbf{P}_2 = \mathbf{P}_3 + \left[\begin{array}{c} -v_{\text{trunk}} \cdot T/6 \\\\ 0 \\\\ 0.1 \cdot h_{\text{clearance}} \end{array}\right]$$
+
+$$\mathbf{P}_3 = \text{Target landing position}$$
 
 Velocity and acceleration are computed analytically:
 
