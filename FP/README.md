@@ -46,7 +46,7 @@ FP/
 │                           main.cpp                                  │
 │  ┌─────────────┐    ┌─────────────┐    ┌──────────────────────────┐ │
 │  │    Task     │───>│ BipedRobot  │───>│    RobotController       │ │
-│  │  Scheduler  │    │ State Machine│    │  (QP Optimization)      │ │
+│  │  Scheduler  │    │State Machine│    │  (QP Optimization)       │ │
 │  └─────────────┘    └─────────────┘    └──────────────────────────┘ │
 │         │                  │                       │                │
 │         v                  v                       v                │
@@ -386,7 +386,7 @@ $$
 \mathbf{J}_{task} = \begin{bmatrix} \mathbf{J}_{base} & \mathbf{J}_{joint} \end{bmatrix}
 $$
 
-where $\mathbf{J}_{base} \in \mathbb{R}^{4 \times 3}$ and $\mathbf{J}_{joint} \in \mathbb{R}^{4 \times 4}$.
+where $\mathbf{J}_{\text{base}} \in \mathbb{R}^{4 \times 3}$ and $\mathbf{J}_{\text{joint}} \in \mathbb{R}^{4 \times 4}$.
 
 The desired joint acceleration is:
 
@@ -458,14 +458,14 @@ $$
 $$
 
 For each foot:
-$$
-\begin{aligned}
-f_{L,x} - \mu f_{L,z} &\leq 0 \\
--f_{L,x} - \mu f_{L,z} &\leq 0 \\
-f_{R,x} - \mu f_{R,z} &\leq 0 \\
--f_{R,x} - \mu f_{R,z} &\leq 0
-\end{aligned}
-$$
+
+$$f_{L,x} - \mu f_{L,z} \leq 0$$
+
+$$-f_{L,x} - \mu f_{L,z} \leq 0$$
+
+$$f_{R,x} - \mu f_{R,z} \leq 0$$
+
+$$-f_{R,x} - \mu f_{R,z} \leq 0$$
 
 *Normal Force Bounds:*
 
@@ -510,9 +510,9 @@ $$
 | Trunk X | $w_x$ | $\mathbf{J}_x = [1, 0, 0, 0, 0, 0, 0]$ | $\ddot{x}^{des} = K_p^x(x_d - x) + K_d^x(\dot{x}_d - \dot{x})$ |
 | Trunk Z | $w_z$ | $\mathbf{J}_z = [0, 1, 0, 0, 0, 0, 0]$ | $\ddot{z}^{des} = K_p^z(z_d - z) - K_d^z \dot{z}$ |
 | Trunk Pitch | $w_\theta$ | $\mathbf{J}_\theta = [0, 0, 1, 0, 0, 0, 0]$ | $\ddot{\theta}^{des} = K_p^\theta(\theta_d - \theta) - K_d^\theta \dot{\theta}$ |
-| Swing Foot | $w_{sw}$ | $\mathbf{J}_{sw} \in \mathbb{R}^{2 \times 7}$ | $\ddot{\mathbf{p}}_{sw}^{des}$ (from Bezier trajectory) |
+| Swing Foot | $w_{\text{sw}}$ | $\mathbf{J}_{\text{sw}} \in \mathbb{R}^{2 \times 7}$ | $\ddot{\mathbf{p}}_{\text{sw}}^{\text{des}}$ (from Bezier trajectory) |
 
-**Walking Gains:** $K_p^x = 100$, $K_d^x = 15$, $K_p^z = 300$, $K_d^z = 30$, $K_p^\theta = 300$, $K_d^\theta = 30$, $K_p^{sw} = 450$, $K_d^{sw} = 20$
+**Walking Gains:** $K_p^x = 100$, $K_d^x = 15$, $K_p^z = 300$, $K_d^z = 30$, $K_p^\theta = 300$, $K_d^\theta = 30$, $K_p^{\text{sw}} = 450$, $K_d^{\text{sw}} = 20$
 
 The quadratic cost matrix structure:
 
@@ -634,10 +634,12 @@ $$
 
 where $s = t/T_{swing} \in [0,1]$ and:
 
-- $\mathbf{P}_0$: Initial foot position
-- $\mathbf{P}_1 = \mathbf{P}_0 + [v_{trunk} \cdot T/3, 0, h_{clearance}]^T$
-- $\mathbf{P}_2 = \mathbf{P}_3 + [-v_{trunk} \cdot T/6, 0, 0.1 \cdot h_{clearance}]^T$
-- $\mathbf{P}_3$: Target landing position
+| Control Point | Definition |
+|---------------|------------|
+| $\mathbf{P}_0$ | Initial foot position |
+| $\mathbf{P}_1$ | $\mathbf{P}_0 + [v_{\text{trunk}} \cdot T/3, \, 0, \, h_{\text{clearance}}]^T$ |
+| $\mathbf{P}_2$ | $\mathbf{P}_3 + [-v_{\text{trunk}} \cdot T/6, \, 0, \, 0.1 \cdot h_{\text{clearance}}]^T$ |
+| $\mathbf{P}_3$ | Target landing position |
 
 Velocity and acceleration are computed analytically:
 
