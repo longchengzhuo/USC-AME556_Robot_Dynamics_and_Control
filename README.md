@@ -132,39 +132,39 @@ $$
 Initial configuration designed to cause hip angle violation during free fall:
 
 <p align="center">
-  <img src="task1_1/task1_1.gif" alt="Task 1.1 - Hip Angle Violation" width="66%">
+  <img src="FP/task1_1/task1_1.gif" alt="Task 1.1 - Hip Angle Violation" width="66%">
 </p>
 <p align="center">
   <em>Hip joint angle limit violation demonstration</em>
 </p>
 
 <p align="center">
-  <img src="task1_1/fig1_trunk_x.png" alt="Trunk X" width="48%">
-  <img src="task1_1/fig2_trunk_y.png" alt="Trunk Y" width="48%">
+  <img src="FP/task1_1/fig1_trunk_x.png" alt="Trunk X" width="48%">
+  <img src="FP/task1_1/fig2_trunk_y.png" alt="Trunk Y" width="48%">
 </p>
 <p align="center">
   <em>Trunk position (X and Y)</em>
 </p>
 
 <p align="center">
-  <img src="task1_1/fig3_trunk_pitch.png" alt="Trunk Pitch" width="48%">
-  <img src="task1_1/fig8_joint_torques.png" alt="Joint Torques" width="48%">
+  <img src="FP/task1_1/fig3_trunk_pitch.png" alt="Trunk Pitch" width="48%">
+  <img src="FP/task1_1/fig8_joint_torques.png" alt="Joint Torques" width="48%">
 </p>
 <p align="center">
   <em>Trunk pitch and joint torques</em>
 </p>
 
 <p align="center">
-  <img src="task1_1/fig4_left_hip.png" alt="Left Hip Angle" width="48%">
-  <img src="task1_1/fig5_left_knee.png" alt="Left Knee Angle" width="48%">
+  <img src="FP/task1_1/fig4_left_hip.png" alt="Left Hip Angle" width="48%">
+  <img src="FP/task1_1/fig5_left_knee.png" alt="Left Knee Angle" width="48%">
 </p>
 <p align="center">
   <em>Left leg joint states</em>
 </p>
 
 <p align="center">
-  <img src="task1_1/fig6_right_hip.png" alt="Right Hip Angle" width="48%">
-  <img src="task1_1/fig7_right_knee.png" alt="Right Knee Angle" width="48%">
+  <img src="FP/task1_1/fig6_right_hip.png" alt="Right Hip Angle" width="48%">
+  <img src="FP/task1_1/fig7_right_knee.png" alt="Right Knee Angle" width="48%">
 </p>
 <p align="center">
   <em>Right leg joint states</em>
@@ -175,39 +175,39 @@ Initial configuration designed to cause hip angle violation during free fall:
 Configuration causing knee angle constraint violation:
 
 <p align="center">
-  <img src="task1_2/task1_2.gif" alt="Task 1.2 - Knee Angle Violation" width="66%">
+  <img src="FP/task1_2/task1_2.gif" alt="Task 1.2 - Knee Angle Violation" width="66%">
 </p>
 <p align="center">
   <em>Knee joint angle limit violation demonstration</em>
 </p>
 
 <p align="center">
-  <img src="task1_2/fig1_trunk_x.png" alt="Trunk X" width="48%">
-  <img src="task1_2/fig2_trunk_y.png" alt="Trunk Y" width="48%">
+  <img src="FP/task1_2/fig1_trunk_x.png" alt="Trunk X" width="48%">
+  <img src="FP/task1_2/fig2_trunk_y.png" alt="Trunk Y" width="48%">
 </p>
 <p align="center">
   <em>Trunk position (X and Y)</em>
 </p>
 
 <p align="center">
-  <img src="task1_2/fig3_trunk_pitch.png" alt="Trunk Pitch" width="48%">
-  <img src="task1_2/fig8_joint_torques.png" alt="Joint Torques" width="48%">
+  <img src="FP/task1_2/fig3_trunk_pitch.png" alt="Trunk Pitch" width="48%">
+  <img src="FP/task1_2/fig8_joint_torques.png" alt="Joint Torques" width="48%">
 </p>
 <p align="center">
   <em>Trunk pitch and joint torques</em>
 </p>
 
 <p align="center">
-  <img src="task1_2/fig4_left_hip.png" alt="Left Hip Angle" width="48%">
-  <img src="task1_2/fig5_left_knee.png" alt="Left Knee Angle" width="48%">
+  <img src="FP/task1_2/fig4_left_hip.png" alt="Left Hip Angle" width="48%">
+  <img src="FP/task1_2/fig5_left_knee.png" alt="Left Knee Angle" width="48%">
 </p>
 <p align="center">
   <em>Left leg joint states</em>
 </p>
 
 <p align="center">
-  <img src="task1_2/fig6_right_hip.png" alt="Right Hip Angle" width="48%">
-  <img src="task1_2/fig7_right_knee.png" alt="Right Knee Angle" width="48%">
+  <img src="FP/task1_2/fig6_right_hip.png" alt="Right Hip Angle" width="48%">
+  <img src="FP/task1_2/fig7_right_knee.png" alt="Right Knee Angle" width="48%">
 </p>
 <p align="center">
   <em>Right leg joint states</em>
@@ -218,39 +218,39 @@ Configuration causing knee angle constraint violation:
 High-energy initial state causing velocity constraint violation:
 
 <p align="center">
-  <img src="task1_3/task1_3.gif" alt="Task 1.3 - Velocity Violation" width="66%">
+  <img src="FP/task1_3/task1_3.gif" alt="Task 1.3 - Velocity Violation" width="66%">
 </p>
 <p align="center">
   <em>Joint velocity limit violation demonstration</em>
 </p>
 
 <p align="center">
-  <img src="task1_3/fig1_trunk_x.png" alt="Trunk X" width="48%">
-  <img src="task1_3/fig2_trunk_y.png" alt="Trunk Y" width="48%">
+  <img src="FP/task1_3/fig1_trunk_x.png" alt="Trunk X" width="48%">
+  <img src="FP/task1_3/fig2_trunk_y.png" alt="Trunk Y" width="48%">
 </p>
 <p align="center">
   <em>Trunk position (X and Y)</em>
 </p>
 
 <p align="center">
-  <img src="task1_3/fig3_trunk_pitch.png" alt="Trunk Pitch" width="48%">
-  <img src="task1_3/fig8_joint_torques.png" alt="Joint Torques" width="48%">
+  <img src="FP/task1_3/fig3_trunk_pitch.png" alt="Trunk Pitch" width="48%">
+  <img src="FP/task1_3/fig8_joint_torques.png" alt="Joint Torques" width="48%">
 </p>
 <p align="center">
   <em>Trunk pitch and joint torques</em>
 </p>
 
 <p align="center">
-  <img src="task1_3/fig4_left_hip.png" alt="Left Hip States" width="48%">
-  <img src="task1_3/fig5_left_knee.png" alt="Left Knee States" width="48%">
+  <img src="FP/task1_3/fig4_left_hip.png" alt="Left Hip States" width="48%">
+  <img src="FP/task1_3/fig5_left_knee.png" alt="Left Knee States" width="48%">
 </p>
 <p align="center">
   <em>Left leg joint states</em>
 </p>
 
 <p align="center">
-  <img src="task1_3/fig6_right_hip.png" alt="Right Hip States" width="48%">
-  <img src="task1_3/fig7_right_knee.png" alt="Right Knee States" width="48%">
+  <img src="FP/task1_3/fig6_right_hip.png" alt="Right Hip States" width="48%">
+  <img src="FP/task1_3/fig7_right_knee.png" alt="Right Knee States" width="48%">
 </p>
 <p align="center">
   <em>Right leg joint states</em>
@@ -278,7 +278,7 @@ The complete demonstration follows this timeline:
 ### Walking Results
 
 <p align="center">
-  <img src="task2/task2.gif" alt="Task 2 - Complete Walking Demo" width="80%">
+  <img src="FP/task2/task2.gif" alt="Task 2 - Complete Walking Demo" width="80%">
 </p>
 <p align="center">
   <em>Complete standing and walking demonstration</em>
@@ -287,15 +287,15 @@ The complete demonstration follows this timeline:
 #### Trunk Trajectory Tracking
 
 <p align="center">
-  <img src="task2/fig1_trunk_x.png" alt="Trunk X Position" width="48%">
-  <img src="task2/fig2_trunk_y.png" alt="Trunk Y Position" width="48%">
+  <img src="FP/task2/fig1_trunk_x.png" alt="Trunk X Position" width="48%">
+  <img src="FP/task2/fig2_trunk_y.png" alt="Trunk Y Position" width="48%">
 </p>
 <p align="center">
   <em>Trunk position tracking (X: forward displacement, Y: height regulation)</em>
 </p>
 
 <p align="center">
-  <img src="task2/fig3_trunk_pitch.png" alt="Trunk Pitch" width="66%">
+  <img src="FP/task2/fig3_trunk_pitch.png" alt="Trunk Pitch" width="66%">
 </p>
 <p align="center">
   <em>Trunk pitch angle regulation during locomotion</em>
@@ -304,16 +304,16 @@ The complete demonstration follows this timeline:
 #### Joint Angle Trajectories
 
 <p align="center">
-  <img src="task2/fig4_left_hip.png" alt="Left Hip" width="48%">
-  <img src="task2/fig5_left_knee.png" alt="Left Knee" width="48%">
+  <img src="FP/task2/fig4_left_hip.png" alt="Left Hip" width="48%">
+  <img src="FP/task2/fig5_left_knee.png" alt="Left Knee" width="48%">
 </p>
 <p align="center">
   <em>Left leg joint angles (all within physical limits)</em>
 </p>
 
 <p align="center">
-  <img src="task2/fig6_right_hip.png" alt="Right Hip" width="48%">
-  <img src="task2/fig7_right_knee.png" alt="Right Knee" width="48%">
+  <img src="FP/task2/fig6_right_hip.png" alt="Right Hip" width="48%">
+  <img src="FP/task2/fig7_right_knee.png" alt="Right Knee" width="48%">
 </p>
 <p align="center">
   <em>Right leg joint angles (all within physical limits)</em>
@@ -322,7 +322,7 @@ The complete demonstration follows this timeline:
 #### Control Torques
 
 <p align="center">
-  <img src="task2/fig8_joint_torques.png" alt="Joint Torques" width="80%">
+  <img src="FP/task2/fig8_joint_torques.png" alt="Joint Torques" width="80%">
 </p>
 <p align="center">
   <em>Joint torques throughout the demonstration (all within saturation limits)</em>
